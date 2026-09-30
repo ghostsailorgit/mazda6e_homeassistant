@@ -37,6 +37,19 @@ def _door(position: str) -> Mazda6eBinarySensorDescription:
     )
 
 
+def _lamp(name: str) -> Mazda6eBinarySensorDescription:
+    return Mazda6eBinarySensorDescription(
+        key=f"lamp_{name}",
+        translation_key=f"lamp_{name}",
+        device_class=BinarySensorDeviceClass.LIGHT,
+        entity_registry_enabled_default=False,
+        value_fn=lambda s, n=name: s.lamps.get(n),
+    )
+
+
+LAMPS = ("low_beam", "high_beam", "position", "left_turn", "right_turn")
+
+
 def _window(position: str) -> Mazda6eBinarySensorDescription:
     return Mazda6eBinarySensorDescription(
         key=f"window_{position}",
@@ -98,6 +111,7 @@ BINARY_SENSORS: tuple[Mazda6eBinarySensorDescription, ...] = (
         icon="mdi:air-conditioner",
         value_fn=lambda s: s.climate_on,
     ),
+    *(_lamp(name) for name in LAMPS),
     Mazda6eBinarySensorDescription(
         key="online",
         translation_key="online",

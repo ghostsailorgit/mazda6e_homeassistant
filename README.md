@@ -105,6 +105,136 @@ automation:
           hvac_mode: heat_cool
 ```
 
+## Weitere Fernsteuerung
+
+Alle Befehle werden wie beim Verriegeln signiert. Entitäten für Ausstattung, die das Auto
+laut seiner Funktionsliste (`function-config`) nicht hat, werden nicht angelegt.
+
+| Entität | Was sie tut | PIN |
+| --- | --- | --- |
+| Knopf **Status vom Auto anfordern** | weckt das Auto, damit es sofort frische Daten meldet (nach ~30 s wird neu abgefragt) | – |
+| Knopf **Lichthupe** / **Hupen und Blinken** | Auto auf dem Parkplatz finden | – |
+| Regler **Ladelimit einstellen** | 60–100 % | – |
+| Auswahl **Sitzheizung / Sitzlüftung Fahrer & Beifahrer** | Aus, Stufe 1–3 | – |
+| Schalter **Lenkradheizung**, **Frontscheibe enteisen** | an/aus | – |
+| Abdeckung **Fenster**, **Heckklappe** | öffnen/schließen | gespeicherte PIN nötig |
+| Schalter + Uhrzeit **Akku vorheizen (Plan im Auto)** | der Vorheizplan, den auch die App zeigt | – |
+| Schalter + Start/Ende **Ladezeitplan (Plan im Auto)** | der Ladeplan aus der App (nur wenn einer existiert) | – |
+
+Fenster und Heckklappe fragen in Home Assistant keine PIN ab (Abdeckungen können das
+nicht) – sie funktionieren nur mit gespeicherter Steuer-PIN, sonst kommt eine
+Fehlermeldung.
+
+Zusätzliche Sensoren: Luftfeuchte und Feinstaub im Innenraum, Lichter
+(Abblend-/Fernlicht, Standlicht, Blinker – standardmäßig deaktiviert).
+
+## Vorklimatisierung mit Wochenplan
+
+Die Integration kann das Auto vor der Abfahrt vorheizen oder vorkühlen – nach einem
+**Wochenplan mit eigener Abfahrtszeit pro Tag** und/oder ausgelöst durch **beliebige
+Home-Assistant-Trigger**. Der Plan liegt in Home Assistant (nicht im Auto) und
+funktioniert auch, wenn die Cloud kurz nicht erreichbar ist.
+
+**Profil** (was beim Vorklimatisieren passiert, alles unter *Konfiguration* am Gerät):
+
+- *Vorklimatisierung Temperatur* (16–30 °C)
+- *Vorklimatisierung Vorlaufzeit* (5–30 min) – so lange vor der Abfahrt wird gestartet,
+  die Klimatisierung läuft genau so lange
+- *Vorklimatisierung: Sitzheizung* (Fahrersitz, Aus/1–3)
+- *Vorklimatisierung: Lenkradheizung*, *…: Enteisen*
+- *Vorklimatisierung: Akku vorheizen* – setzt den Akku-Vorheizplan des Autos immer auf die
+  nächste geplante Abfahrt (der Akku braucht mehr Vorlauf, das regelt das Auto selbst)
+
+**Wochenplan:** Schalter *Vorklimatisierung Wochenplan* (Hauptschalter), dazu pro
+Wochentag ein Schalter *Vorklimatisierung Montag…Sonntag* und eine Uhrzeit
+*Abfahrt Montag…Sonntag*. Standard: Mo–Fr 07:30, Wochenende aus.
+
+**Anzeige:** *Nächste Abfahrt* und *Nächster Vorklimatisierungsstart* (Zeitstempel; die
+Attribute zeigen außerdem den letzten Lauf und fehlgeschlagene Schritte).
+
+**Knöpfe:** *Vorklimatisierung starten* / *stoppen* (sofort, mit dem Profil) und
+*Nächste Abfahrt überspringen* (z. B. Feiertag, Homeoffice).
+
+### Externe Trigger (Automationen)
+
+| Service | Zweck |
+| --- | --- |
+| `mazda6e.start_preconditioning` | jetzt vorklimatisieren; optional `temperature`, `duration`, `seat_heat` (0–3), `steering_wheel`, `defrost`, `battery` – leere Felder nehmen das Profil |
+| `mazda6e.stop_preconditioning` | Klima, Sitz-/Lenkradheizung und Enteisen aus |
+| `mazda6e.skip_next_departure` | nächste Abfahrt des Wochenplans auslassen |
+
+`device_id` ist nur bei mehreren Autos nötig. `start_preconditioning` liefert als Antwort
+die fehlgeschlagenen Schritte (`failed`). Jeder Lauf löst das Event
+`mazda6e_preconditioning` aus (`action`: `started`/`stopped`, `source`:
+`schedule`/`service`/`button`, `departure`, `failed`).
+
+Beispiel: nach dem Kalender vorheizen, nur wenn es kalt ist
+
+```yaml
+automation:
+  - alias: Mazda vorheizen vor Terminen
+    triggers:
+      - trigger: calendar
+        event: start
+        entity_id: calendar.arbeit
+        offset: "-0:20:00"
+    conditions:
+      - condition: numeric_state
+        entity_id: sensor.aussentemperatur
+        below: 5
+    actions:
+      - action: mazda6e.start_preconditioning
+        data:
+          temperature: 22
+          duration: 20
+          seat_heat: 2
+          steering_wheel: true
+          defrost: true
+```
+
+Beispiel: Wochenplan an Feiertagen und im Urlaub aussetzen
+
+```yaml
+automation:
+  - alias: Mazda Abfahrt an Feiertagen überspringen
+    triggers:
+      - trigger: time
+        at: "20:00:00"
+    conditions:
+      - condition: state
+        entity_id: binary_sensor.feiertag_morgen
+        state: "on"
+    actions:
+      - action: mazda6e.skip_next_departure
+```
+
+Beispiel: Benachrichtigung, wenn ein Schritt fehlschlägt
+
+```yaml
+automation:
+  - alias: Mazda Vorklimatisierung fehlgeschlagen
+    triggers:
+      - trigger: event
+        event_type: mazda6e_preconditioning
+    conditions:
+      - "{{ trigger.event.data.failed | length > 0 }}"
+    actions:
+      - action: notify.mobile_app_handy
+        data:
+          message: "Vorklimatisierung: fehlgeschlagen {{ trigger.event.data.failed | join(', ') }}"
+```
+
+### Protokoll-Unsicherheiten
+
+Die beiden Referenzprojekte unterscheiden sich an einigen Stellen; umgesetzt ist jeweils:
+
+- Hupen/Blinken: `type` 1 = nur Licht, 3 = Licht + Hupe (laut Sunek0; fano nutzt 1 für
+  „Auto finden“) – daher zwei Knöpfe
+- Fenster: mit `openType: 10` (Sunek0)
+- Signatur: ohne leeres `rcToken` bei Befehlen ohne PIN
+
+Falls etwas davon am echten Auto nicht klappt, bitte mit Debug-Log melden.
+
 ## Installation
 
 ### HACS (benutzerdefiniertes Repository)

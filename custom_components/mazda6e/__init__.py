@@ -6,7 +6,9 @@ from datetime import timedelta
 
 from homeassistant.const import CONF_SCAN_INTERVAL, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.typing import ConfigType
 
 from .api import Mazda6eClient
 from .const import (
@@ -17,16 +19,32 @@ from .const import (
     CONF_REGION,
     CONF_TOKEN,
     DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
 )
 from .coordinator import Mazda6eConfigEntry, Mazda6eCoordinator
+from .precondition import Preconditioner
+from .services import async_setup_services
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 PLATFORMS = [
     Platform.BINARY_SENSOR,
+    Platform.BUTTON,
     Platform.CLIMATE,
+    Platform.COVER,
     Platform.DEVICE_TRACKER,
     Platform.LOCK,
+    Platform.NUMBER,
+    Platform.SELECT,
     Platform.SENSOR,
+    Platform.SWITCH,
+    Platform.TIME,
 ]
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    async_setup_services(hass)
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: Mazda6eConfigEntry) -> bool:
@@ -52,6 +70,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: Mazda6eConfigEntry) -> b
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = coordinator
+    if entry.data.get(CONF_CONTROL_PRIVATE_KEY):
+        for vehicle_id in coordinator.data:
+            preconditioner = Preconditioner(hass, coordinator, vehicle_id)
+            await preconditioner.async_load()
+            coordinator.preconditioners[vehicle_id] = preconditioner
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_entry_updated))
     return True
@@ -70,4 +93,6 @@ async def _async_entry_updated(hass: HomeAssistant, entry: Mazda6eConfigEntry) -
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: Mazda6eConfigEntry) -> bool:
+    for preconditioner in entry.runtime_data.preconditioners.values():
+        await preconditioner.async_unload()
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

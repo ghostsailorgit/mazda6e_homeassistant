@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -14,9 +14,10 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
 from .api import MazdaAuthError, MazdaError, MazdaPinError
-from .const import DOMAIN
-from .coordinator import Mazda6eCoordinator, VehicleData
+from .const import CONF_CONTROL_PRIVATE_KEY, DOMAIN
+from .coordinator import Mazda6eConfigEntry, Mazda6eCoordinator, VehicleData
 from .models import VehicleStatus
+from .precondition import Preconditioner
 
 
 class Mazda6eEntity(CoordinatorEntity[Mazda6eCoordinator]):
@@ -46,6 +47,10 @@ class Mazda6eEntity(CoordinatorEntity[Mazda6eCoordinator]):
         return (self.coordinator.data or {}).get(self._vehicle_id)
 
     @property
+    def data(self) -> VehicleData | None:
+        return self._data
+
+    @property
     def status(self) -> VehicleStatus:
         data = self._data
         return data.status if data else VehicleStatus()
@@ -53,6 +58,11 @@ class Mazda6eEntity(CoordinatorEntity[Mazda6eCoordinator]):
     @property
     def available(self) -> bool:
         return super().available and self._data is not None
+
+
+def has_control(entry: Mazda6eConfigEntry) -> bool:
+    """Remote commands need the key pair registered at login."""
+    return bool(entry.data.get(CONF_CONTROL_PRIVATE_KEY))
 
 
 # The car often reports a changed state only minutes after confirming a
@@ -120,3 +130,38 @@ class Mazda6eControlEntity(Mazda6eEntity):
                 self._optimistic = None
                 self._commanded_at = None
         super()._handle_coordinator_update()
+
+
+class Mazda6ePlanEntity(Mazda6eEntity):
+    """Setting or action of the pre-conditioning plan (stored in Home Assistant)."""
+
+    def __init__(
+        self,
+        coordinator: Mazda6eCoordinator,
+        vehicle_id: str,
+        description: EntityDescription,
+        preconditioner: Preconditioner,
+    ) -> None:
+        super().__init__(coordinator, vehicle_id, description)
+        self.preconditioner = preconditioner
+
+    @property
+    def available(self) -> bool:
+        # The plan lives in Home Assistant and works while the cloud is down.
+        return True
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self.async_on_remove(self.preconditioner.async_add_listener(self.async_write_ha_state))
+
+
+def plan_entities(
+    entry: Mazda6eConfigEntry, factory: Callable[[str, Preconditioner], list[Any]]
+) -> list[Any]:
+    """Build plan entities for every car that has a pre-conditioner."""
+    coordinator = entry.runtime_data
+    return [
+        entity
+        for vehicle_id, preconditioner in coordinator.preconditioners.items()
+        for entity in factory(vehicle_id, preconditioner)
+    ]

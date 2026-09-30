@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -13,6 +14,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import (
+    CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
     PERCENTAGE,
     EntityCategory,
     UnitOfElectricCurrent,
@@ -26,7 +28,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .coordinator import Mazda6eConfigEntry
-from .entity import Mazda6eEntity
+from .entity import Mazda6eEntity, Mazda6ePlanEntity, plan_entities
 from .models import CHARGE_STATUS, POSITIONS, VehicleStatus
 
 
@@ -135,6 +137,23 @@ SENSORS: tuple[Mazda6eSensorDescription, ...] = (
         value_fn=lambda s: s.inside_temperature,
     ),
     Mazda6eSensorDescription(
+        key="inside_humidity",
+        translation_key="inside_humidity",
+        device_class=SensorDeviceClass.HUMIDITY,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=PERCENTAGE,
+        value_fn=lambda s: s.inside_humidity,
+    ),
+    Mazda6eSensorDescription(
+        key="inside_pm25",
+        translation_key="inside_pm25",
+        device_class=SensorDeviceClass.PM25,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+        entity_registry_enabled_default=False,
+        value_fn=lambda s: s.inside_pm25,
+    ),
+    Mazda6eSensorDescription(
         key="speed",
         translation_key="speed",
         icon="mdi:speedometer",
@@ -174,6 +193,48 @@ async def async_setup_entry(
         for vehicle_id in coordinator.data
         for description in SENSORS
     )
+    async_add_entities(
+        plan_entities(
+            entry, lambda vid, p: [Mazda6ePlanSensor(coordinator, vid, d, p) for d in PLAN_SENSORS]
+        )
+    )
+
+
+PLAN_SENSORS = (
+    SensorEntityDescription(
+        key="precondition_next_departure",
+        translation_key="precondition_next_departure",
+        icon="mdi:car-clock",
+        device_class=SensorDeviceClass.TIMESTAMP,
+    ),
+    SensorEntityDescription(
+        key="precondition_next_start",
+        translation_key="precondition_next_start",
+        icon="mdi:timer-play-outline",
+        device_class=SensorDeviceClass.TIMESTAMP,
+    ),
+)
+
+
+class Mazda6ePlanSensor(Mazda6ePlanEntity, SensorEntity):
+    """Next planned departure / pre-conditioning start (unknown if none)."""
+
+    @property
+    def native_value(self) -> datetime | None:
+        if self.entity_description.key == "precondition_next_departure":
+            return self.preconditioner.next_departure()
+        return self.preconditioner.next_start()
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        last = self.preconditioner.last_run or {}
+        return {
+            "skipped_departure": self.preconditioner.settings["skip"],
+            "last_action": last.get("action"),
+            "last_source": last.get("source"),
+            "last_time": last.get("time"),
+            "last_failed_steps": last.get("failed"),
+        }
 
 
 class Mazda6eSensor(Mazda6eEntity, SensorEntity):
