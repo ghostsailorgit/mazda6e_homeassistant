@@ -1,0 +1,264 @@
+"""Async client for the backend used by the "MAZDA 6e & CX-6e" app.
+
+This module deliberately has no Home Assistant imports so it can be used
+from the command line (see scripts/mazda6e_cli.py) to test an account.
+
+Login flow as done by the app:
+  1. POST cma-app-auth/api/login/email-pass-in/v2 with RSA-encrypted e-mail
+     and password plus the public half of a client key pair.
+  2. If the response says ``emailVerify: true`` the device is unknown. The app
+     then asks the backend to e-mail a code (send-email/device-login/send)
+     and confirms it (login-device/email-verify).
+  3. Every later request carries ``authorization: <token>`` and the same
+     ``deviceid``. Expired tokens are renewed with the refresh token.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import time
+from collections.abc import Awaitable, Callable
+from typing import Any
+
+import aiohttp
+
+from .const import BASE_URLS
+from .crypto import encrypt_credential
+from .models import Vehicle, VehicleStatus
+
+_LOGGER = logging.getLogger(__name__)
+
+APP_VERSION = "1.2.3"
+DEVICE_NAME = "Home Assistant"
+
+HEADERS = {
+    "content-type": "application/json",
+    "accept": "*/*",
+    "appid": "cma",
+    "apptype": "IOS",
+    "devicetype": "iPhone",
+    "appversion": f"V{APP_VERSION}",
+    "accept-language": "en-US;q=1.0",
+    "language": "en_US",
+    "user-agent": f"overseas/{APP_VERSION} (com.mazda.mazda6e; build:1; iOS 18.0.0) Alamofire/5.5.0",
+}
+
+# Backend result codes
+CODE_TOKEN_EXPIRED = "APP_1_1_02_004"
+
+TIMEOUT = aiohttp.ClientTimeout(total=30)
+
+
+class MazdaError(Exception):
+    """Base error of this client."""
+
+
+class MazdaConnectionError(MazdaError):
+    """Backend not reachable or answered garbage."""
+
+
+class MazdaAuthError(MazdaError):
+    """Credentials or tokens were rejected; a new login is needed."""
+
+    def __init__(self, message: str, code: str | None = None) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+class MazdaApiError(MazdaError):
+    """Backend rejected a request."""
+
+    def __init__(self, message: str, code: str | None = None) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+TokenCallback = Callable[[str, str], Awaitable[None] | None]
+
+
+class Mazda6eClient:
+    """Minimal read-only client for the Mazda 6e cloud."""
+
+    def __init__(
+        self,
+        session: aiohttp.ClientSession,
+        region: str,
+        device_id: str,
+        *,
+        token: str | None = None,
+        refresh_token: str | None = None,
+        on_token_update: TokenCallback | None = None,
+    ) -> None:
+        if region not in BASE_URLS:
+            raise ValueError(f"Unknown region {region!r}")
+        self._session = session
+        self._base = BASE_URLS[region]
+        self.device_id = device_id
+        self.token = token
+        self.refresh_token = refresh_token
+        self._on_token_update = on_token_update
+        self._refresh_lock = asyncio.Lock()
+
+    # ------------------------------------------------------------------ http
+
+    def _headers(self, *, auth: bool = True) -> dict[str, str]:
+        headers = {**HEADERS, "deviceid": self.device_id}
+        if auth and self.token:
+            headers["authorization"] = self.token
+        return headers
+
+    async def _post(self, path: str, body: dict[str, Any], *, auth: bool = True) -> dict[str, Any]:
+        url = f"{self._base}/{path}"
+        try:
+            async with self._session.post(
+                url, json=body, headers=self._headers(auth=auth), timeout=TIMEOUT
+            ) as resp:
+                if resp.status in (401, 403):
+                    raise MazdaAuthError(f"HTTP {resp.status}")
+                if resp.status >= 400:
+                    raise MazdaConnectionError(f"HTTP {resp.status} for {path}")
+                data = await resp.json(content_type=None)
+        except (TimeoutError, aiohttp.ClientError) as err:
+            raise MazdaConnectionError(f"Request to {path} failed: {err}") from err
+        except ValueError as err:  # invalid JSON
+            raise MazdaConnectionError(f"Invalid response from {path}") from err
+
+        if not isinstance(data, dict):
+            raise MazdaConnectionError(f"Unexpected response from {path}")
+        return data
+
+    async def _request(self, path: str, body: dict[str, Any]) -> Any:
+        """Authenticated request with a single token refresh on expiry."""
+        if not self.token:
+            raise MazdaAuthError("Not logged in")
+
+        for attempt in range(2):
+            data = await self._post(path, body)
+            if data.get("success") is True:
+                return data.get("data")
+
+            code = data.get("code")
+            if code == CODE_TOKEN_EXPIRED and attempt == 0:
+                _LOGGER.debug("Token expired, refreshing")
+                await self._refresh(expired_token=self.token)
+                continue
+            if code == CODE_TOKEN_EXPIRED:
+                raise MazdaAuthError("Token rejected after refresh", code)
+            raise MazdaApiError(f"{path}: {code} {data.get('msg')}", code)
+
+        raise MazdaAuthError("Token refresh loop")  # pragma: no cover
+
+    async def _refresh(self, expired_token: str | None) -> None:
+        async with self._refresh_lock:
+            if self.token != expired_token:
+                return  # someone else refreshed in the meantime
+            if not self.refresh_token:
+                raise MazdaAuthError("No refresh token")
+            data = await self._post(
+                "cma-app-auth/api/auth/refresh-token",
+                {"refreshToken": self.refresh_token},
+            )
+            if data.get("success") is not True:
+                raise MazdaAuthError("Token refresh failed", data.get("code"))
+            await self._store_tokens(data.get("data") or {})
+
+    async def _store_tokens(self, data: dict[str, Any]) -> None:
+        token, refresh = data.get("token"), data.get("refreshToken")
+        if not token or not refresh:
+            raise MazdaAuthError("Backend returned no token")
+        self.token, self.refresh_token = token, refresh
+        if self._on_token_update:
+            result = self._on_token_update(token, refresh)
+            if asyncio.iscoroutine(result):
+                await result
+
+    # ----------------------------------------------------------------- login
+
+    async def login(self, email: str, password: str, public_key: str) -> bool:
+        """Log in. Returns True if the device must be verified via e-mail code."""
+        data = await self._post(
+            "cma-app-auth/api/login/email-pass-in/v2",
+            {
+                "loginTime": str(int(time.time())),
+                "email": encrypt_credential(email),
+                "password": encrypt_credential(password),
+                "pubKey": public_key,
+            },
+            auth=False,
+        )
+        if data.get("success") is not True:
+            raise MazdaAuthError(f"Login rejected: {data.get('msg')}", data.get("code"))
+        payload = data.get("data") or {}
+        await self._store_tokens(payload)
+        return bool(payload.get("emailVerify"))
+
+    async def request_device_code(self, email: str) -> None:
+        """Ask the backend to e-mail a verification code for this device."""
+        await self._request(
+            "cma-app-user/api/send-email/device-login/send",
+            {
+                "email": encrypt_credential(email),
+                "deviceName": DEVICE_NAME,
+                "loginTime": str(int(time.time())),
+                "type": "1",
+            },
+        )
+
+    async def verify_device_code(self, email: str, code: str) -> None:
+        result = await self._request(
+            "cma-app-user/api/login-device/email-verify",
+            {
+                "authCode": code.strip(),
+                "email": encrypt_credential(email),
+                "deviceName": DEVICE_NAME,
+                "deviceModel": DEVICE_NAME,
+                "lastLoginTime": str(int(time.time())),
+                "type": "3",
+            },
+        )
+        if result is not True:
+            raise MazdaApiError("Verification code not accepted")
+
+    # ------------------------------------------------------------------ data
+
+    async def get_vehicles(self) -> list[Vehicle]:
+        raw: Any = []
+        # The backend has two routes; depending on account one of them is empty.
+        for path in ("cma-app-user/api/vehicle/vehicles", "cma-app-user/api/car/vehicles"):
+            try:
+                raw = await self._request(path, {})
+            except MazdaApiError as err:
+                _LOGGER.debug("%s not usable: %s", path, err)
+                continue
+            if raw:
+                break
+        return [Vehicle.from_api(v) for v in raw or [] if isinstance(v, dict) and v.get("vin")]
+
+    async def get_status_raw(self, vehicle_id: str) -> dict[str, Any]:
+        data = await self._request(
+            "cma-app-car-condition/api/vehicle/condition/v2",
+            {
+                "vehicleId": vehicle_id,
+                "vechileCriteria": {  # sic, typo is part of the API
+                    "vehicleStatus": "1",
+                    "charge": "1",
+                    "door": "1",
+                    "window": "1",
+                    "hvac": "1",
+                    "tire": "1",
+                    "lamp": "1",
+                    "seat": "1",
+                    "location": "1",
+                    "fuel": "0",
+                    "departurePlan": "0",
+                    "airConditionPlan": "0",
+                    "warmCoolingBox": "0",
+                    "welcome": "0",
+                },
+            },
+        )
+        return data if isinstance(data, dict) else {}
+
+    async def get_status(self, vehicle_id: str) -> VehicleStatus:
+        return VehicleStatus.from_api(await self.get_status_raw(vehicle_id))

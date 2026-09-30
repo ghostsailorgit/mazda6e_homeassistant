@@ -1,0 +1,13 @@
+{
+  "domain": "mazda6e",
+  "name": "Mazda 6e",
+  "codeowners": ["@ghostsailorgit"],
+  "config_flow": true,
+  "documentation": "https://github.com/ghostsailorgit/mazda6e_homeassistant",
+  "integration_type": "hub",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/ghostsailorgit/mazda6e_homeassistant/issues",
+  "loggers": ["custom_components.mazda6e"],
+  "requirements": ["cryptography>=41.0.0"],
+  "version": "0.1.0"
+}

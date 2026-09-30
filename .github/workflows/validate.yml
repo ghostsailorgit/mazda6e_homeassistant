@@ -1,0 +1,37 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  hassfest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+
+  hacs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: hacs/action@main
+        with:
+          category: integration
+          ignore: brands
+
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Unit tests (API client, parsing)
+        run: |
+          python -m venv /tmp/plain
+          /tmp/plain/bin/pip install aiohttp cryptography pytest
+          /tmp/plain/bin/pytest tests --ignore tests/ha
+      - name: Home Assistant tests
+        run: |
+          pip install -r requirements_test.txt
+          pytest tests/ha
