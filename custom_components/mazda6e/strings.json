@@ -1,0 +1,212 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Mazda 6e",
+        "description": "Sign in with the account of the MAZDA 6e & CX-6e app.",
+        "data": {
+          "email": "E-mail",
+          "password": "Password",
+          "region": "Region"
+        }
+      },
+      "verify": {
+        "title": "Confirm new device",
+        "description": "Mazda has sent a verification code to {email}. Enter it here.",
+        "data": {
+          "code": "Verification code"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "E-mail or password is wrong.",
+      "cannot_connect": "Could not reach the Mazda servers.",
+      "invalid_code": "The code was not accepted.",
+      "unknown": "Unexpected error, see the log."
+    },
+    "abort": {
+      "already_configured": "This account is already configured.",
+      "reauth_successful": "Re-authentication successful."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "data": {
+          "scan_interval": "Update interval (minutes)",
+          "store_pin": "Store control PIN",
+          "control_pin": "Control PIN (6 digits)"
+        },
+        "data_description": {
+          "scan_interval": "Short intervals may wake the car more often and drain the 12 V battery.",
+          "store_pin": "If off, Home Assistant asks for the PIN each time you lock or unlock.",
+          "control_pin": "The remote-control PIN from the Mazda app. Leave empty to keep the stored PIN."
+        },
+        "description": "The PIN is checked with Mazda when you save. Too many wrong attempts lock remote control in the app."
+      }
+    },
+    "error": {
+      "pin_required": "Enter the PIN to store it.",
+      "invalid_pin_format": "The PIN has to be exactly 6 digits.",
+      "invalid_pin": "Mazda rejected the PIN.",
+      "invalid_pin_attempts": "Mazda rejected the PIN. Attempts left: {attempts}.",
+      "cannot_connect": "Could not reach the Mazda servers.",
+      "unknown": "Unexpected error, see the log."
+    }
+  },
+  "selector": {
+    "region": {
+      "options": {
+        "europe": "Europe",
+        "asia": "Asia / Pacific"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "soc": {
+        "name": "Battery level"
+      },
+      "range": {
+        "name": "Range"
+      },
+      "odometer": {
+        "name": "Odometer"
+      },
+      "charge_current": {
+        "name": "Charging current"
+      },
+      "ac_charge_current": {
+        "name": "AC charging current"
+      },
+      "dc_charge_current": {
+        "name": "DC charging current"
+      },
+      "remaining_charge_time": {
+        "name": "Remaining charging time"
+      },
+      "charge_limit": {
+        "name": "Charge limit"
+      },
+      "inside_temperature": {
+        "name": "Interior temperature"
+      },
+      "speed": {
+        "name": "Speed"
+      },
+      "last_update": {
+        "name": "Last update from car"
+      },
+      "charge_status": {
+        "name": "Charging status",
+        "state": {
+          "not_charging": "Not charging",
+          "charging": "Charging",
+          "completed": "Completed",
+          "paused": "Paused",
+          "unknown": "Unknown"
+        }
+      },
+      "vehicle_state": {
+        "name": "Vehicle state",
+        "state": {
+          "driving": "Driving",
+          "parked": "Parked"
+        }
+      },
+      "tire_pressure_front_left": {
+        "name": "Tire pressure front left"
+      },
+      "tire_pressure_front_right": {
+        "name": "Tire pressure front right"
+      },
+      "tire_pressure_rear_left": {
+        "name": "Tire pressure rear left"
+      },
+      "tire_pressure_rear_right": {
+        "name": "Tire pressure rear right"
+      }
+    },
+    "binary_sensor": {
+      "lock": {
+        "name": "Lock"
+      },
+      "doors": {
+        "name": "Doors"
+      },
+      "windows": {
+        "name": "Windows"
+      },
+      "trunk": {
+        "name": "Trunk"
+      },
+      "hood": {
+        "name": "Hood"
+      },
+      "plugged_in": {
+        "name": "Charging cable"
+      },
+      "charging": {
+        "name": "Charging"
+      },
+      "climate": {
+        "name": "Climate control"
+      },
+      "online": {
+        "name": "Online"
+      },
+      "door_front_left": {
+        "name": "Door front left"
+      },
+      "window_front_left": {
+        "name": "Window front left"
+      },
+      "door_front_right": {
+        "name": "Door front right"
+      },
+      "window_front_right": {
+        "name": "Window front right"
+      },
+      "door_rear_left": {
+        "name": "Door rear left"
+      },
+      "window_rear_left": {
+        "name": "Window rear left"
+      },
+      "door_rear_right": {
+        "name": "Door rear right"
+      },
+      "window_rear_right": {
+        "name": "Window rear right"
+      }
+    },
+    "device_tracker": {
+      "location": {
+        "name": "Location"
+      }
+    },
+    "lock": {
+      "door_lock": {
+        "name": "Doors"
+      }
+    }
+  },
+  "exceptions": {
+    "pin_missing": {
+      "message": "No control PIN stored. Enter the PIN or store it in the integration options."
+    },
+    "invalid_pin": {
+      "message": "Mazda rejected the control PIN."
+    },
+    "invalid_pin_attempts": {
+      "message": "Mazda rejected the control PIN. Attempts left: {attempts}."
+    },
+    "reauth_required": {
+      "message": "The Mazda login is no longer valid. Please sign in again."
+    },
+    "command_failed": {
+      "message": "Remote command failed: {error}"
+    }
+  }
+}

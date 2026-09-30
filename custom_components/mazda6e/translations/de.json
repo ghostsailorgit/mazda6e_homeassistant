@@ -1,0 +1,212 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Mazda 6e",
+        "description": "Melde dich mit dem Konto der MAZDA 6e & CX-6e App an.",
+        "data": {
+          "email": "E-Mail",
+          "password": "Passwort",
+          "region": "Region"
+        }
+      },
+      "verify": {
+        "title": "Neues Gerät bestätigen",
+        "description": "Mazda hat einen Bestätigungscode an {email} geschickt. Bitte hier eingeben.",
+        "data": {
+          "code": "Bestätigungscode"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "E-Mail oder Passwort ist falsch.",
+      "cannot_connect": "Mazda-Server nicht erreichbar.",
+      "invalid_code": "Der Code wurde nicht akzeptiert.",
+      "unknown": "Unerwarteter Fehler, siehe Log."
+    },
+    "abort": {
+      "already_configured": "Dieses Konto ist bereits eingerichtet.",
+      "reauth_successful": "Erneute Anmeldung erfolgreich."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Optionen",
+        "data": {
+          "scan_interval": "Abfrageintervall (Minuten)",
+          "store_pin": "Steuer-PIN speichern",
+          "control_pin": "Steuer-PIN (6 Ziffern)"
+        },
+        "data_description": {
+          "scan_interval": "Kurze Intervalle können das Auto häufiger wecken und die 12-V-Batterie belasten.",
+          "store_pin": "Wenn aus, fragt Home Assistant bei jedem Ver- und Entriegeln nach der PIN.",
+          "control_pin": "Die PIN für die Fernsteuerung aus der Mazda-App. Leer lassen, um die gespeicherte PIN zu behalten."
+        },
+        "description": "Die PIN wird beim Speichern bei Mazda geprüft. Zu viele Fehlversuche sperren die Fernsteuerung in der App."
+      }
+    },
+    "error": {
+      "pin_required": "Bitte PIN eingeben, um sie zu speichern.",
+      "invalid_pin_format": "Die PIN muss aus genau 6 Ziffern bestehen.",
+      "invalid_pin": "Mazda hat die PIN abgelehnt.",
+      "invalid_pin_attempts": "Mazda hat die PIN abgelehnt. Verbleibende Versuche: {attempts}.",
+      "cannot_connect": "Mazda-Server nicht erreichbar.",
+      "unknown": "Unerwarteter Fehler, siehe Log."
+    }
+  },
+  "selector": {
+    "region": {
+      "options": {
+        "europe": "Europa",
+        "asia": "Asien / Pazifik"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "soc": {
+        "name": "Akkustand"
+      },
+      "range": {
+        "name": "Reichweite"
+      },
+      "odometer": {
+        "name": "Kilometerstand"
+      },
+      "charge_current": {
+        "name": "Ladestrom"
+      },
+      "ac_charge_current": {
+        "name": "AC-Ladestrom"
+      },
+      "dc_charge_current": {
+        "name": "DC-Ladestrom"
+      },
+      "remaining_charge_time": {
+        "name": "Restladezeit"
+      },
+      "charge_limit": {
+        "name": "Ladelimit"
+      },
+      "inside_temperature": {
+        "name": "Innentemperatur"
+      },
+      "speed": {
+        "name": "Geschwindigkeit"
+      },
+      "last_update": {
+        "name": "Letzte Meldung vom Auto"
+      },
+      "charge_status": {
+        "name": "Ladestatus",
+        "state": {
+          "not_charging": "Lädt nicht",
+          "charging": "Lädt",
+          "completed": "Abgeschlossen",
+          "paused": "Pausiert",
+          "unknown": "Unbekannt"
+        }
+      },
+      "vehicle_state": {
+        "name": "Fahrzeugzustand",
+        "state": {
+          "driving": "Fährt",
+          "parked": "Geparkt"
+        }
+      },
+      "tire_pressure_front_left": {
+        "name": "Reifendruck vorne links"
+      },
+      "tire_pressure_front_right": {
+        "name": "Reifendruck vorne rechts"
+      },
+      "tire_pressure_rear_left": {
+        "name": "Reifendruck hinten links"
+      },
+      "tire_pressure_rear_right": {
+        "name": "Reifendruck hinten rechts"
+      }
+    },
+    "binary_sensor": {
+      "lock": {
+        "name": "Verriegelung"
+      },
+      "doors": {
+        "name": "Türen"
+      },
+      "windows": {
+        "name": "Fenster"
+      },
+      "trunk": {
+        "name": "Kofferraum"
+      },
+      "hood": {
+        "name": "Motorhaube"
+      },
+      "plugged_in": {
+        "name": "Ladekabel"
+      },
+      "charging": {
+        "name": "Laden"
+      },
+      "climate": {
+        "name": "Klimaanlage"
+      },
+      "online": {
+        "name": "Online"
+      },
+      "door_front_left": {
+        "name": "Tür vorne links"
+      },
+      "window_front_left": {
+        "name": "Fenster vorne links"
+      },
+      "door_front_right": {
+        "name": "Tür vorne rechts"
+      },
+      "window_front_right": {
+        "name": "Fenster vorne rechts"
+      },
+      "door_rear_left": {
+        "name": "Tür hinten links"
+      },
+      "window_rear_left": {
+        "name": "Fenster hinten links"
+      },
+      "door_rear_right": {
+        "name": "Tür hinten rechts"
+      },
+      "window_rear_right": {
+        "name": "Fenster hinten rechts"
+      }
+    },
+    "device_tracker": {
+      "location": {
+        "name": "Standort"
+      }
+    },
+    "lock": {
+      "door_lock": {
+        "name": "Türen"
+      }
+    }
+  },
+  "exceptions": {
+    "pin_missing": {
+      "message": "Keine Steuer-PIN gespeichert. PIN eingeben oder in den Optionen der Integration hinterlegen."
+    },
+    "invalid_pin": {
+      "message": "Mazda hat die Steuer-PIN abgelehnt."
+    },
+    "invalid_pin_attempts": {
+      "message": "Mazda hat die Steuer-PIN abgelehnt. Verbleibende Versuche: {attempts}."
+    },
+    "reauth_required": {
+      "message": "Die Mazda-Anmeldung ist nicht mehr gültig. Bitte neu anmelden."
+    },
+    "command_failed": {
+      "message": "Fernsteuerbefehl fehlgeschlagen: {error}"
+    }
+  }
+}
