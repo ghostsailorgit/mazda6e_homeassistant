@@ -11,6 +11,15 @@ Login flow as done by the app:
      and confirms it (login-device/email-verify).
   3. Every later request carries ``authorization: <token>`` and the same
      ``deviceid``. Expired tokens are renewed with the refresh token.
+
+Remote control (lock/unlock) as done by the app:
+  1. security-code/get-status shows how many PIN attempts are left,
+     security-code/check-code exchanges the 6-digit PIN for an ``rcToken``.
+  2. serial-no/get returns a one-time serial number, RSA-encrypted with the
+     public key registered at login.
+  3. control/doors gets the command, signed with the matching private key,
+     and answers with a ``commandId``.
+  4. control/control-result is polled until the car confirms or rejects it.
 """
 
 from __future__ import annotations
@@ -24,7 +33,7 @@ from typing import Any
 import aiohttp
 
 from .const import BASE_URLS
-from .crypto import encrypt_credential
+from .crypto import decrypt_serial, encrypt_credential, sign_payload
 from .models import Vehicle, VehicleStatus
 
 _LOGGER = logging.getLogger(__name__)
@@ -48,6 +57,14 @@ HEADERS = {
 CODE_TOKEN_EXPIRED = "APP_1_1_02_004"
 
 TIMEOUT = aiohttp.ClientTimeout(total=30)
+
+# control-result codes
+RESULT_PENDING = -100
+RESULT_SUCCESS = (0, 1201)
+RESULT_ALREADY_DONE = 1015
+
+COMMAND_TIMEOUT = 90  # seconds the car gets to confirm a command
+COMMAND_POLL_INTERVAL = 3
 
 
 class MazdaError(Exception):
@@ -74,11 +91,27 @@ class MazdaApiError(MazdaError):
         self.code = code
 
 
+class MazdaPinError(MazdaError):
+    """The control PIN is missing, wrong or locked after too many attempts."""
+
+    def __init__(self, message: str, attempts_left: int | None = None) -> None:
+        super().__init__(message)
+        self.attempts_left = attempts_left
+
+
+class MazdaCommandError(MazdaError):
+    """The car rejected a remote command or did not confirm it in time."""
+
+    def __init__(self, message: str, code: int | None = None) -> None:
+        super().__init__(message)
+        self.code = code
+
+
 TokenCallback = Callable[[str, str], Awaitable[None] | None]
 
 
 class Mazda6eClient:
-    """Minimal read-only client for the Mazda 6e cloud."""
+    """Minimal client for the Mazda 6e cloud."""
 
     def __init__(
         self,
@@ -89,6 +122,8 @@ class Mazda6eClient:
         token: str | None = None,
         refresh_token: str | None = None,
         on_token_update: TokenCallback | None = None,
+        private_key: str | None = None,
+        control_pin: str | None = None,
     ) -> None:
         if region not in BASE_URLS:
             raise ValueError(f"Unknown region {region!r}")
@@ -99,6 +134,10 @@ class Mazda6eClient:
         self.refresh_token = refresh_token
         self._on_token_update = on_token_update
         self._refresh_lock = asyncio.Lock()
+        self.private_key = private_key
+        self.control_pin = control_pin
+        # The backend handles one command per car at a time.
+        self._command_lock = asyncio.Lock()
 
     # ------------------------------------------------------------------ http
 
@@ -262,3 +301,106 @@ class Mazda6eClient:
 
     async def get_status(self, vehicle_id: str) -> VehicleStatus:
         return VehicleStatus.from_api(await self.get_status_raw(vehicle_id))
+
+    # --------------------------------------------------------------- control
+
+    async def get_rc_token(self, pin: str | None = None) -> str:
+        """Exchange the control PIN for an rcToken.
+
+        Checks the remaining attempts first, like the app, so we never burn the
+        last attempt and lock the PIN.
+        """
+        pin = pin or self.control_pin
+        if not pin:
+            raise MazdaPinError("No control PIN configured")
+
+        status = await self._request("cma-app-car-control/api/security-code/get-status", {})
+        attempts = None
+        if isinstance(status, dict) and status.get("retryQuantity") is not None:
+            try:
+                attempts = int(status["retryQuantity"])
+            except (TypeError, ValueError):
+                attempts = None
+        if attempts is not None and attempts <= 0:
+            raise MazdaPinError("PIN locked after too many wrong attempts", 0)
+
+        try:
+            data = await self._request(
+                "cma-app-car-control/api/security-code/check-code",
+                {"safeCode": encrypt_credential(pin)},
+            )
+        except MazdaApiError as err:
+            left = attempts - 1 if attempts is not None else None
+            raise MazdaPinError(f"PIN rejected ({err.code})", left) from err
+        if not isinstance(data, dict) or not data.get("rcToken"):
+            raise MazdaPinError("PIN check returned no rcToken")
+        return str(data["rcToken"])
+
+    async def _signed_command(
+        self,
+        path: str,
+        vehicle_id: str,
+        params: dict[str, Any],
+        *,
+        needs_pin: bool,
+        pin: str | None = None,
+    ) -> dict[str, Any]:
+        if not self.private_key:
+            raise MazdaAuthError("No control key registered, please log in again")
+
+        async with self._command_lock:
+            payload: dict[str, Any] = {**params, "vehicleId": vehicle_id}
+            if needs_pin:
+                payload["rcToken"] = await self.get_rc_token(pin)
+
+            serial = await self._request("cma-app-car-control/api/serial-no/get", {"type": "1"})
+            if not isinstance(serial, str):
+                raise MazdaApiError("Serial number response was empty")
+            try:
+                payload["seriralNo"] = decrypt_serial(serial, self.private_key)  # sic
+            except ValueError as err:
+                # Serial was encrypted for another key, e.g. after logging in
+                # with the same device elsewhere.
+                raise MazdaAuthError("Control key no longer registered") from err
+            payload["sign"] = sign_payload(payload, self.private_key)
+
+            data = await self._request(path, payload)
+            if not isinstance(data, dict) or not data.get("commandId"):
+                raise MazdaApiError("Command was not accepted")
+            return await self._wait_for_result(vehicle_id, str(data["commandId"]))
+
+    async def _wait_for_result(self, vehicle_id: str, command_id: str) -> dict[str, Any]:
+        deadline = time.monotonic() + COMMAND_TIMEOUT
+        while True:
+            data = await self._request(
+                "cma-app-car-control/api/control/control-result",
+                {"commandId": command_id, "vehicleId": vehicle_id},
+            )
+            data = data if isinstance(data, dict) else {}
+            code = data.get("resultCode")
+            try:
+                code = int(code) if code is not None else RESULT_PENDING
+            except (TypeError, ValueError):
+                code = None
+            if code in RESULT_SUCCESS or code == RESULT_ALREADY_DONE:
+                return data
+            if code != RESULT_PENDING:
+                raise MazdaCommandError(
+                    f"Car rejected the command: {data.get('errorMsg') or code}", code
+                )
+            if time.monotonic() >= deadline:
+                raise MazdaCommandError("Car did not confirm the command in time")
+            await asyncio.sleep(COMMAND_POLL_INTERVAL)
+
+    async def set_locked(self, vehicle_id: str, locked: bool, pin: str | None = None) -> None:
+        """Lock (True) or unlock (False) all doors.
+
+        ``pin`` overrides the stored control PIN for this command.
+        """
+        await self._signed_command(
+            "cma-app-car-control/api/control/doors",
+            vehicle_id,
+            {"command": "lock", "open": not locked},
+            needs_pin=True,
+            pin=pin,
+        )

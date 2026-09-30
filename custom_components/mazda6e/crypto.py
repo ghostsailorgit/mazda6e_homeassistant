@@ -3,16 +3,16 @@
 The app never sends e-mail address or password in clear text: both are
 RSA-encrypted (PKCS#1 v1.5) with a public key that is embedded in the app.
 On login the app also registers a freshly generated RSA key pair of its own
-("pubKey"); the backend uses it to encrypt serial numbers for remote-control
-commands. We generate and keep one as well so that remote control can be
-added later without forcing a new login.
+("pubKey"). The backend encrypts one-time serial numbers for remote-control
+commands with it, and the app signs those commands with the private half.
+We do the same, so the key generated at login is needed for remote control.
 """
 
 from __future__ import annotations
 
 import base64
 
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
 
 # Public key embedded in the official app (Android 1.2.3, RSAUtils).
@@ -59,3 +59,43 @@ def generate_key_pair() -> tuple[str, str]:
         base64.encodebytes(public_der).decode("ascii"),
         base64.encodebytes(private_der).decode("ascii"),
     )
+
+
+def _load_private_key(private_key_b64: str) -> rsa.RSAPrivateKey:
+    key = serialization.load_der_private_key(
+        base64.b64decode("".join(private_key_b64.split())), password=None
+    )
+    if not isinstance(key, rsa.RSAPrivateKey):
+        raise TypeError("Control key is not an RSA key")
+    return key
+
+
+def decrypt_serial(value_b64: str, private_key_b64: str) -> str:
+    """Decrypt the one-time serial number the backend encrypts for our key."""
+    key = _load_private_key(private_key_b64)
+    ciphertext = base64.b64decode("".join(value_b64.split()))
+    return key.decrypt(ciphertext, padding.PKCS1v15()).decode().strip()
+
+
+# Fields the app leaves out of the signature.
+_UNSIGNED_KEYS = frozenset({"sign", "command", "class"})
+
+
+def sign_payload(payload: dict[str, object], private_key_b64: str) -> str:
+    """Sign a control command like the app.
+
+    The canonical string is ``key=value`` pairs sorted by key and joined with
+    ``&``; booleans are lower case. Signature: RSA PKCS#1 v1.5 with SHA-256.
+    """
+    parts = []
+    for key in sorted(payload):
+        if key in _UNSIGNED_KEYS:
+            continue
+        value = payload[key]
+        if isinstance(value, bool):
+            value = str(value).lower()
+        parts.append(f"{key}={value}")
+    signature = _load_private_key(private_key_b64).sign(
+        "&".join(parts).encode(), padding.PKCS1v15(), hashes.SHA256()
+    )
+    return base64.encodebytes(signature).decode("ascii")

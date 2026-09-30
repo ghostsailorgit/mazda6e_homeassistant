@@ -44,10 +44,33 @@ und [Sunek0/ha-mazda-6e-cx6](https://github.com/Sunek0/ha-mazda-6e-cx6) (MIT).
 Hinweis zur Verriegelung: Die Entität hat die Geräteklasse *Schloss*, d. h. **„Ein“ =
 entriegelt**, „Aus“ = verriegelt.
 
-Aktuell ist die Integration **nur lesend**. Fernsteuerung (Verriegeln, Klima,
-Ladelimit) ist technisch möglich (signierte Befehle + 6-stelliger PIN) und kann
-später ergänzt werden – der dafür nötige Schlüssel wird beim Login bereits erzeugt
-und gespeichert.
+## Fernverriegelung
+
+Die Entität **`lock.<auto>_turen`** („Türen“) verriegelt und entriegelt das Auto aus der
+Ferne – wie der Schloss-Knopf in der App. Dafür wird die **6-stellige Steuer-PIN** aus
+der Mazda-App benötigt. Zwei Varianten:
+
+- **PIN nicht speichern (Standard):** Home Assistant fragt bei jedem Ver-/Entriegeln
+  nach der PIN.
+- **PIN speichern:** *Integration → Konfigurieren → „Steuer-PIN speichern“* und PIN
+  eingeben. Sie wird beim Speichern direkt bei Mazda geprüft. Danach funktionieren
+  auch Automationen (z. B. „Um 22 Uhr verriegeln, wenn offen“). Achtung: Wer
+  Zugriff auf Home Assistant hat, kann das Auto dann entriegeln.
+
+Ablauf im Hintergrund (wie die App): Anzahl verbleibender PIN-Versuche abfragen →
+PIN gegen ein `rcToken` tauschen → verschlüsselte Einmal-Seriennummer holen und mit
+dem beim Login registrierten Schlüssel entschlüsseln → Befehl mit RSA-SHA256 signieren
+und an `control/doors` senden → `control/control-result` abfragen, bis das Auto
+bestätigt (max. 90 s).
+
+Sicherheitsnetz: Sind keine PIN-Versuche mehr übrig, wird die PIN gar nicht erst
+gesendet. Bei falscher PIN zeigt die Fehlermeldung die verbleibenden Versuche.
+
+Nach einem bestätigten Befehl zeigt die Entität den neuen Zustand sofort an, bis das
+Auto selbst einen neueren Status meldet (spätestens nach 10 Minuten).
+
+> Das Auto braucht Mobilfunkempfang. In Tiefgaragen kann ein Befehl mit
+> „nicht rechtzeitig bestätigt“ fehlschlagen.
 
 ## Installation
 
@@ -69,7 +92,7 @@ Home Assistant neu starten.
 1. E-Mail, Passwort und Region eingeben (dieselben Daten wie in der App).
 2. Mazda schickt einen **Bestätigungscode per E-Mail** – diesen eingeben.
 
-Das Passwort wird nicht gespeichert, nur die Tokens. Unter *Konfigurieren* lässt sich
+Das Passwort wird nicht gespeichert, nur die Tokens und der Steuerschlüssel. Unter *Konfigurieren* lässt sich
 das Abfrageintervall (Standard: 5 Minuten) einstellen.
 
 > Ob eine zusätzliche Anmeldung die App auf dem Handy abmeldet, ist nicht
@@ -84,7 +107,8 @@ python scripts/mazda6e_cli.py --email du@example.com --raw
 ```
 
 Das Skript loggt sich ein, fragt ggf. nach dem E-Mail-Code und gibt den Fahrzeugstatus
-aus – ideal, um zu prüfen, ob alle Werte passen.
+aus – ideal, um zu prüfen, ob alle Werte passen. Mit `--lock` bzw. `--unlock` lässt sich
+die Fernverriegelung testen (fragt nach der Steuer-PIN).
 
 ## Fehlersuche
 

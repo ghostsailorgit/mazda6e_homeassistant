@@ -9,5 +9,5 @@
   "issue_tracker": "https://github.com/ghostsailorgit/mazda6e_homeassistant/issues",
   "loggers": ["custom_components.mazda6e"],
   "requirements": ["cryptography>=41.0.0"],
-  "version": "0.1.0"
+  "version": "0.2.0"
 }

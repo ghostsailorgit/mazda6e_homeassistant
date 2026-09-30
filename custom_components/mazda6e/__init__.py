@@ -10,6 +10,8 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import Mazda6eClient
 from .const import (
+    CONF_CONTROL_PIN,
+    CONF_CONTROL_PRIVATE_KEY,
     CONF_DEVICE_ID,
     CONF_REFRESH_TOKEN,
     CONF_REGION,
@@ -18,7 +20,7 @@ from .const import (
 )
 from .coordinator import Mazda6eConfigEntry, Mazda6eCoordinator
 
-PLATFORMS = [Platform.BINARY_SENSOR, Platform.DEVICE_TRACKER, Platform.SENSOR]
+PLATFORMS = [Platform.BINARY_SENSOR, Platform.DEVICE_TRACKER, Platform.LOCK, Platform.SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: Mazda6eConfigEntry) -> bool:
@@ -36,6 +38,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: Mazda6eConfigEntry) -> b
         token=entry.data[CONF_TOKEN],
         refresh_token=entry.data[CONF_REFRESH_TOKEN],
         on_token_update=store_tokens,
+        private_key=entry.data.get(CONF_CONTROL_PRIVATE_KEY),
+        control_pin=entry.options.get(CONF_CONTROL_PIN),
     )
     minutes = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
     coordinator = Mazda6eCoordinator(hass, entry, client, timedelta(minutes=minutes))
@@ -48,9 +52,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: Mazda6eConfigEntry) -> b
 
 
 async def _async_entry_updated(hass: HomeAssistant, entry: Mazda6eConfigEntry) -> None:
-    # Called for token updates too, so only adjust the interval instead of reloading.
+    # Called for token updates too, so apply options in place instead of reloading.
+    coordinator = entry.runtime_data
     minutes = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
-    entry.runtime_data.update_interval = timedelta(minutes=minutes)
+    coordinator.update_interval = timedelta(minutes=minutes)
+    pin = entry.options.get(CONF_CONTROL_PIN)
+    if coordinator.client.control_pin != pin:
+        coordinator.client.control_pin = pin
+        # The lock's code_format depends on the PIN, so write its state again.
+        coordinator.async_update_listeners()
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: Mazda6eConfigEntry) -> bool:

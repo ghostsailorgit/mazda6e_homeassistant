@@ -13,6 +13,7 @@ from homeassistant.const import CONF_EMAIL, CONF_PASSWORD, CONF_SCAN_INTERVAL
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -24,12 +25,21 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 
-from .api import Mazda6eClient, MazdaApiError, MazdaAuthError, MazdaConnectionError
+from .api import (
+    Mazda6eClient,
+    MazdaApiError,
+    MazdaAuthError,
+    MazdaConnectionError,
+    MazdaError,
+    MazdaPinError,
+)
 from .const import (
+    CONF_CONTROL_PIN,
     CONF_CONTROL_PRIVATE_KEY,
     CONF_DEVICE_ID,
     CONF_REFRESH_TOKEN,
     CONF_REGION,
+    CONF_STORE_PIN,
     CONF_TOKEN,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
@@ -171,17 +181,37 @@ class Mazda6eConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class Mazda6eOptionsFlow(OptionsFlow):
+    """Poll interval and the optional stored control PIN."""
+
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        options = self.config_entry.options
+        errors: dict[str, str] = {}
+        placeholders = {"attempts": "?"}
+
         if user_input is not None:
-            return self.async_create_entry(
-                data={CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL])}
-            )
-        current = self.config_entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+            new_options = {CONF_SCAN_INTERVAL: int(user_input[CONF_SCAN_INTERVAL])}
+            pin = (user_input.get(CONF_CONTROL_PIN) or "").strip()
+            if user_input.get(CONF_STORE_PIN):
+                if pin:
+                    errors = await self._async_check_pin(pin, placeholders)
+                    new_options[CONF_CONTROL_PIN] = pin
+                elif options.get(CONF_CONTROL_PIN):
+                    new_options[CONF_CONTROL_PIN] = options[CONF_CONTROL_PIN]
+                else:
+                    errors[CONF_CONTROL_PIN] = "pin_required"
+            if not errors:
+                return self.async_create_entry(data=new_options)
+
         return self.async_show_form(
             step_id="init",
+            errors=errors,
+            description_placeholders=placeholders,
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_SCAN_INTERVAL, default=current): NumberSelector(
+                    vol.Required(
+                        CONF_SCAN_INTERVAL,
+                        default=options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL),
+                    ): NumberSelector(
                         NumberSelectorConfig(
                             min=MIN_SCAN_INTERVAL,
                             max=MAX_SCAN_INTERVAL,
@@ -189,7 +219,34 @@ class Mazda6eOptionsFlow(OptionsFlow):
                             mode=NumberSelectorMode.BOX,
                             unit_of_measurement="min",
                         )
-                    )
+                    ),
+                    vol.Required(
+                        CONF_STORE_PIN, default=bool(options.get(CONF_CONTROL_PIN))
+                    ): BooleanSelector(),
+                    vol.Optional(CONF_CONTROL_PIN): TextSelector(
+                        TextSelectorConfig(type=TextSelectorType.PASSWORD)
+                    ),
                 }
             ),
         )
+
+    async def _async_check_pin(self, pin: str, placeholders: dict[str, str]) -> dict[str, str]:
+        """Validate the PIN against the backend so typos show up right away."""
+        if len(pin) != 6 or not pin.isdigit():
+            return {CONF_CONTROL_PIN: "invalid_pin_format"}
+        coordinator = getattr(self.config_entry, "runtime_data", None)
+        if coordinator is None:
+            return {}  # integration not loaded, can't check now
+        try:
+            await coordinator.client.get_rc_token(pin)
+        except MazdaPinError as err:
+            if err.attempts_left is not None:
+                placeholders["attempts"] = str(err.attempts_left)
+                return {CONF_CONTROL_PIN: "invalid_pin_attempts"}
+            return {CONF_CONTROL_PIN: "invalid_pin"}
+        except MazdaConnectionError:
+            return {"base": "cannot_connect"}
+        except MazdaError:
+            _LOGGER.exception("Could not verify the control PIN")
+            return {"base": "unknown"}
+        return {}

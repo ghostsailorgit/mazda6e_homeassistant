@@ -9,6 +9,8 @@ CONF_DEVICE_ID = "device_id"
 CONF_TOKEN = "token"
 CONF_REFRESH_TOKEN = "refresh_token"
 CONF_CONTROL_PRIVATE_KEY = "control_private_key"
+CONF_CONTROL_PIN = "control_pin"
+CONF_STORE_PIN = "store_pin"
 
 REGION_EUROPE = "europe"
 REGION_ASIA = "asia"

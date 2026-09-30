@@ -34,12 +34,25 @@
       "init": {
         "title": "Optionen",
         "data": {
-          "scan_interval": "Abfrageintervall (Minuten)"
+          "scan_interval": "Abfrageintervall (Minuten)",
+          "store_pin": "Steuer-PIN speichern",
+          "control_pin": "Steuer-PIN (6 Ziffern)"
         },
         "data_description": {
-          "scan_interval": "Kurze Intervalle können das Auto häufiger wecken und die 12-V-Batterie belasten."
-        }
+          "scan_interval": "Kurze Intervalle können das Auto häufiger wecken und die 12-V-Batterie belasten.",
+          "store_pin": "Wenn aus, fragt Home Assistant bei jedem Ver- und Entriegeln nach der PIN.",
+          "control_pin": "Die PIN für die Fernsteuerung aus der Mazda-App. Leer lassen, um die gespeicherte PIN zu behalten."
+        },
+        "description": "Die PIN wird beim Speichern bei Mazda geprüft. Zu viele Fehlversuche sperren die Fernsteuerung in der App."
       }
+    },
+    "error": {
+      "pin_required": "Bitte PIN eingeben, um sie zu speichern.",
+      "invalid_pin_format": "Die PIN muss aus genau 6 Ziffern bestehen.",
+      "invalid_pin": "Mazda hat die PIN abgelehnt.",
+      "invalid_pin_attempts": "Mazda hat die PIN abgelehnt. Verbleibende Versuche: {attempts}.",
+      "cannot_connect": "Mazda-Server nicht erreichbar.",
+      "unknown": "Unerwarteter Fehler, siehe Log."
     }
   },
   "selector": {
@@ -172,6 +185,28 @@
       "location": {
         "name": "Standort"
       }
+    },
+    "lock": {
+      "door_lock": {
+        "name": "Türen"
+      }
+    }
+  },
+  "exceptions": {
+    "pin_missing": {
+      "message": "Keine Steuer-PIN gespeichert. PIN eingeben oder in den Optionen der Integration hinterlegen."
+    },
+    "invalid_pin": {
+      "message": "Mazda hat die Steuer-PIN abgelehnt."
+    },
+    "invalid_pin_attempts": {
+      "message": "Mazda hat die Steuer-PIN abgelehnt. Verbleibende Versuche: {attempts}."
+    },
+    "reauth_required": {
+      "message": "Die Mazda-Anmeldung ist nicht mehr gültig. Bitte neu anmelden."
+    },
+    "command_failed": {
+      "message": "Fernsteuerbefehl fehlgeschlagen: {error}"
     }
   }
 }

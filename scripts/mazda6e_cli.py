@@ -6,7 +6,13 @@
 
 Logs in exactly like the integration, asks for the e-mail verification code
 if Mazda requests one, and prints the parsed and raw vehicle status. Tokens
-are cached in ~/.mazda6e_cli.json so repeated runs don't trigger new codes.
+and the control key are cached in ~/.mazda6e_cli.json so repeated runs don't
+trigger new codes.
+
+    python scripts/mazda6e_cli.py --email you@example.com --lock
+    python scripts/mazda6e_cli.py --email you@example.com --unlock
+
+locks/unlocks the first car; the 6-digit control PIN is asked for.
 """
 
 from __future__ import annotations
@@ -58,13 +64,25 @@ async def main() -> None:
     parser.add_argument("--email", required=True)
     parser.add_argument("--region", default="europe", choices=["europe", "asia"])
     parser.add_argument("--raw", action="store_true", help="also print the raw JSON response")
+    action = parser.add_mutually_exclusive_group()
+    action.add_argument("--lock", action="store_true", help="lock the car")
+    action.add_argument("--unlock", action="store_true", help="unlock the car")
     args = parser.parse_args()
 
     cache = _load_cache(args.email)
     device_id = cache.get("device_id") or str(uuid.uuid4())
+    private_key = cache.get("private_key")
 
     def remember(token: str, refresh: str) -> None:
-        _save_cache(args.email, {"device_id": device_id, "token": token, "refresh_token": refresh})
+        _save_cache(
+            args.email,
+            {
+                "device_id": device_id,
+                "token": token,
+                "refresh_token": refresh,
+                "private_key": client.private_key,
+            },
+        )
 
     async with aiohttp.ClientSession() as session:
         client = api.Mazda6eClient(
@@ -74,6 +92,7 @@ async def main() -> None:
             token=cache.get("token"),
             refresh_token=cache.get("refresh_token"),
             on_token_update=remember,
+            private_key=private_key,
         )
 
         try:
@@ -83,7 +102,7 @@ async def main() -> None:
 
         if vehicles is None:
             password = getpass.getpass("Mazda password: ")
-            public_key, _private_key = crypto.generate_key_pair()
+            public_key, client.private_key = crypto.generate_key_pair()
             if await client.login(args.email, password, public_key):
                 await client.request_device_code(args.email)
                 code = input(f"Verification code sent to {args.email}: ")
@@ -92,6 +111,17 @@ async def main() -> None:
 
         if not vehicles:
             print("No vehicles on this account.")
+            return
+
+        if args.lock or args.unlock:
+            if not client.private_key:
+                print("No control key cached, delete ~/.mazda6e_cli.json and log in again.")
+                return
+            vehicle = vehicles[0]
+            pin = getpass.getpass("Control PIN (6 digits): ")
+            print(f"{'Locking' if args.lock else 'Unlocking'} {vehicle.display_name} ...")
+            await client.set_locked(vehicle.vehicle_id, args.lock, pin=pin)
+            print("Confirmed by the car.")
             return
 
         for vehicle in vehicles:

@@ -34,12 +34,25 @@
       "init": {
         "title": "Options",
         "data": {
-          "scan_interval": "Update interval (minutes)"
+          "scan_interval": "Update interval (minutes)",
+          "store_pin": "Store control PIN",
+          "control_pin": "Control PIN (6 digits)"
         },
         "data_description": {
-          "scan_interval": "Short intervals may wake the car more often and drain the 12 V battery."
-        }
+          "scan_interval": "Short intervals may wake the car more often and drain the 12 V battery.",
+          "store_pin": "If off, Home Assistant asks for the PIN each time you lock or unlock.",
+          "control_pin": "The remote-control PIN from the Mazda app. Leave empty to keep the stored PIN."
+        },
+        "description": "The PIN is checked with Mazda when you save. Too many wrong attempts lock remote control in the app."
       }
+    },
+    "error": {
+      "pin_required": "Enter the PIN to store it.",
+      "invalid_pin_format": "The PIN has to be exactly 6 digits.",
+      "invalid_pin": "Mazda rejected the PIN.",
+      "invalid_pin_attempts": "Mazda rejected the PIN. Attempts left: {attempts}.",
+      "cannot_connect": "Could not reach the Mazda servers.",
+      "unknown": "Unexpected error, see the log."
     }
   },
   "selector": {
@@ -172,6 +185,28 @@
       "location": {
         "name": "Location"
       }
+    },
+    "lock": {
+      "door_lock": {
+        "name": "Doors"
+      }
+    }
+  },
+  "exceptions": {
+    "pin_missing": {
+      "message": "No control PIN stored. Enter the PIN or store it in the integration options."
+    },
+    "invalid_pin": {
+      "message": "Mazda rejected the control PIN."
+    },
+    "invalid_pin_attempts": {
+      "message": "Mazda rejected the control PIN. Attempts left: {attempts}."
+    },
+    "reauth_required": {
+      "message": "The Mazda login is no longer valid. Please sign in again."
+    },
+    "command_failed": {
+      "message": "Remote command failed: {error}"
     }
   }
 }

@@ -9,6 +9,7 @@ from homeassistant.const import CONF_EMAIL
 from homeassistant.core import HomeAssistant
 
 from .const import (
+    CONF_CONTROL_PIN,
     CONF_CONTROL_PRIVATE_KEY,
     CONF_DEVICE_ID,
     CONF_REFRESH_TOKEN,
@@ -22,6 +23,7 @@ TO_REDACT = {
     CONF_REFRESH_TOKEN,
     CONF_DEVICE_ID,
     CONF_CONTROL_PRIVATE_KEY,
+    CONF_CONTROL_PIN,
     "vin",
     "plate_number",
     "latitude",
