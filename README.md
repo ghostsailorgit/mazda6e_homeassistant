@@ -72,6 +72,39 @@ Auto selbst einen neueren Status meldet (spätestens nach 10 Minuten).
 > Das Auto braucht Mobilfunkempfang. In Tiefgaragen kann ein Befehl mit
 > „nicht rechtzeitig bestätigt“ fehlschlagen.
 
+## Klimasteuerung
+
+Die Entität **„Klimatisierung“** (`climate.<auto>_klimatisierung`) startet und stoppt die
+Standklimatisierung wie der Lüfter-Knopf in der App – z. B. um das Auto im Winter
+vorzuheizen oder im Sommer vorzukühlen.
+
+- Modi: *Aus* und *Heizen/Kühlen*, Zieltemperatur 16–30 °C in 0,5er-Schritten
+- Die Klimatisierung läuft jeweils **15 Minuten** (wie der Standard in der App)
+- Keine PIN nötig (die App fragt dafür auch keine ab)
+- Temperatur ändern, während die Klimatisierung aus ist, merkt sich nur den Wert und
+  startet nichts – erst „Einschalten“ startet mit dieser Temperatur
+- Aktuelle Temperatur = Innenraumtemperatur, die das Auto meldet
+
+Beispiel-Automation: werktags um 7:15 Uhr auf 21 °C vorheizen
+
+```yaml
+automation:
+  - alias: Mazda vorheizen
+    triggers:
+      - trigger: time
+        at: "07:15:00"
+    conditions:
+      - condition: time
+        weekday: [mon, tue, wed, thu, fri]
+    actions:
+      - action: climate.set_temperature
+        target:
+          entity_id: climate.mazda_6e_klimatisierung
+        data:
+          temperature: 21
+          hvac_mode: heat_cool
+```
+
 ## Installation
 
 ### HACS (benutzerdefiniertes Repository)
@@ -111,7 +144,8 @@ python scripts/mazda6e_cli.py --email du@example.com --raw
 
 Das Skript loggt sich ein, fragt ggf. nach dem E-Mail-Code und gibt den Fahrzeugstatus
 aus – ideal, um zu prüfen, ob alle Werte passen. Mit `--lock` bzw. `--unlock` lässt sich
-die Fernverriegelung testen (fragt nach der Steuer-PIN).
+die Fernverriegelung testen (fragt nach der Steuer-PIN), mit `--climate-on 21` bzw.
+`--climate-off` die Klimasteuerung.
 
 ## Fehlersuche
 

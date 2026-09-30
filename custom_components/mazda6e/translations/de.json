@@ -190,6 +190,11 @@
       "door_lock": {
         "name": "Türen"
       }
+    },
+    "climate": {
+      "cabin_climate": {
+        "name": "Klimatisierung"
+      }
     }
   },
   "exceptions": {

@@ -191,7 +191,7 @@ class FakeControlBackend(FakeBackend):
         if path.endswith("serial-no/get"):
             enc = self.public_key.encrypt(self.serial.encode(), padding.PKCS1v15())
             return web.json_response({"success": True, "data": base64.encodebytes(enc).decode()})
-        if path.endswith("control/doors"):
+        if path.endswith(("control/doors", "control/air-conditioner")):
             canonical = "&".join(
                 f"{k}={str(v).lower() if isinstance(v, bool) else v}"
                 for k, v in sorted(body.items())
@@ -200,7 +200,9 @@ class FakeControlBackend(FakeBackend):
             self.public_key.verify(  # raises InvalidSignature -> HTTP 500
                 base64.b64decode(body["sign"]), canonical.encode(), padding.PKCS1v15(), hashes.SHA256()
             )
-            assert body["seriralNo"] == self.serial and body["rcToken"] == "rc-1"
+            assert body["seriralNo"] == self.serial
+            if path.endswith("control/doors"):
+                assert body["rcToken"] == "rc-1"
             self.commands.append(body)
             return web.json_response({"success": True, "data": {"commandId": "cmd-1"}})
         if path.endswith("control/control-result"):
@@ -327,3 +329,44 @@ def test_serial_for_other_key_needs_relogin(control):
             await client.set_locked("42", True)
 
     _run_control(backend, other_private, run)
+
+
+def test_climate_on_signed_without_pin(control):
+    public, private = control
+    backend = FakeControlBackend(public, [-100, 0])
+
+    async def run(client):
+        await client.set_climate("42", True, 22.5)
+
+    _run_control(backend, private, run, pin=None)
+    body = backend.commands[0]
+    assert body["enabled"] is True
+    assert body["targetTemp"] == 225
+    assert body["runTime"] == 15
+    assert body["command"] == "air"
+    assert "rcToken" not in body
+    assert not any("security-code" in c for c in backend.calls)
+    assert "cma-app-car-control/api/control/air-conditioner" in backend.calls
+
+
+def test_climate_off(control):
+    public, private = control
+    backend = FakeControlBackend(public, [1015])  # already off counts as success
+
+    async def run(client):
+        await client.set_climate("42", False, 21)
+
+    _run_control(backend, private, run)
+    assert backend.commands[0]["enabled"] is False
+
+
+def test_climate_temperature_range(control):
+    public, private = control
+    backend = FakeControlBackend(public, [])
+
+    async def run(client):
+        with pytest.raises(ValueError):
+            await client.set_climate("42", True, 35)
+
+    _run_control(backend, private, run)
+    assert backend.calls == []

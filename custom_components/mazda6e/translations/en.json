@@ -190,6 +190,11 @@
       "door_lock": {
         "name": "Doors"
       }
+    },
+    "climate": {
+      "cabin_climate": {
+        "name": "Climate"
+      }
     }
   },
   "exceptions": {

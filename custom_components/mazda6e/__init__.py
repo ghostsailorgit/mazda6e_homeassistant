@@ -20,7 +20,13 @@ from .const import (
 )
 from .coordinator import Mazda6eConfigEntry, Mazda6eCoordinator
 
-PLATFORMS = [Platform.BINARY_SENSOR, Platform.DEVICE_TRACKER, Platform.LOCK, Platform.SENSOR]
+PLATFORMS = [
+    Platform.BINARY_SENSOR,
+    Platform.CLIMATE,
+    Platform.DEVICE_TRACKER,
+    Platform.LOCK,
+    Platform.SENSOR,
+]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: Mazda6eConfigEntry) -> bool:

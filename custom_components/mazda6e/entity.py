@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable
+from datetime import datetime, timedelta
+from typing import Any
+
+from homeassistant.core import callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityDescription
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
+from .api import MazdaAuthError, MazdaError, MazdaPinError
 from .const import DOMAIN
 from .coordinator import Mazda6eCoordinator, VehicleData
 from .models import VehicleStatus
@@ -45,3 +53,70 @@ class Mazda6eEntity(CoordinatorEntity[Mazda6eCoordinator]):
     @property
     def available(self) -> bool:
         return super().available and self._data is not None
+
+
+# The car often reports a changed state only minutes after confirming a
+# command; show the commanded state until a newer report arrives.
+OPTIMISTIC_HOLD = timedelta(minutes=10)
+
+
+class Mazda6eControlEntity(Mazda6eEntity):
+    """Entity that sends remote commands and shows their result optimistically."""
+
+    _optimistic: dict[str, Any] | None = None
+    _commanded_at: datetime | None = None
+
+    def _value(self, field: str) -> Any:
+        """VehicleStatus field, overridden by a pending commanded value."""
+        if self._optimistic and field in self._optimistic:
+            return self._optimistic[field]
+        return getattr(self.status, field)
+
+    async def _async_command(
+        self, command: Awaitable[Any], optimistic: dict[str, Any], *, pin: str | None = None
+    ) -> None:
+        """Run a command, map errors to translated messages, refresh afterwards.
+
+        ``optimistic`` maps VehicleStatus fields to the values the command sets.
+        """
+        try:
+            await command
+        except MazdaPinError as err:
+            if err.attempts_left is not None:
+                raise HomeAssistantError(
+                    translation_domain=DOMAIN,
+                    translation_key="invalid_pin_attempts",
+                    translation_placeholders={"attempts": str(err.attempts_left)},
+                ) from err
+            key = "pin_missing" if not (pin or self.coordinator.client.control_pin) else "invalid_pin"
+            raise HomeAssistantError(translation_domain=DOMAIN, translation_key=key) from err
+        except MazdaAuthError as err:
+            self.coordinator.config_entry.async_start_reauth(self.hass)
+            raise HomeAssistantError(translation_domain=DOMAIN, translation_key="reauth_required") from err
+        except MazdaError as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="command_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
+        else:
+            self._optimistic = optimistic
+            self._commanded_at = dt_util.utcnow()
+        finally:
+            self.async_write_ha_state()
+
+        await self.coordinator.async_request_refresh()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        if self._optimistic is not None and self._commanded_at is not None:
+            status = self.status
+            reported = status.last_update
+            if (
+                all(getattr(status, k) == v for k, v in self._optimistic.items())
+                or (reported is not None and reported > self._commanded_at)
+                or dt_util.utcnow() - self._commanded_at > OPTIMISTIC_HOLD
+            ):
+                self._optimistic = None
+                self._commanded_at = None
+        super()._handle_coordinator_update()

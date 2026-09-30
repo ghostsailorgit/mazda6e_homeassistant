@@ -13,6 +13,11 @@ trigger new codes.
     python scripts/mazda6e_cli.py --email you@example.com --unlock
 
 locks/unlocks the first car; the 6-digit control PIN is asked for.
+
+    python scripts/mazda6e_cli.py --email you@example.com --climate-on 21
+    python scripts/mazda6e_cli.py --email you@example.com --climate-off
+
+starts/stops remote climate (no PIN needed).
 """
 
 from __future__ import annotations
@@ -67,6 +72,8 @@ async def main() -> None:
     action = parser.add_mutually_exclusive_group()
     action.add_argument("--lock", action="store_true", help="lock the car")
     action.add_argument("--unlock", action="store_true", help="unlock the car")
+    action.add_argument("--climate-on", type=float, metavar="TEMP", help="start climate at TEMP °C")
+    action.add_argument("--climate-off", action="store_true", help="stop climate")
     args = parser.parse_args()
 
     cache = _load_cache(args.email)
@@ -113,10 +120,20 @@ async def main() -> None:
             print("No vehicles on this account.")
             return
 
+        wants_climate = args.climate_on is not None or args.climate_off
+        if (args.lock or args.unlock or wants_climate) and not client.private_key:
+            print("No control key cached, delete ~/.mazda6e_cli.json and log in again.")
+            return
+
+        if wants_climate:
+            vehicle = vehicles[0]
+            on = args.climate_on is not None
+            print(f"{'Starting' if on else 'Stopping'} climate for {vehicle.display_name} ...")
+            await client.set_climate(vehicle.vehicle_id, on, args.climate_on if on else 21.0)
+            print("Confirmed by the car.")
+            return
+
         if args.lock or args.unlock:
-            if not client.private_key:
-                print("No control key cached, delete ~/.mazda6e_cli.json and log in again.")
-                return
             vehicle = vehicles[0]
             pin = getpass.getpass("Control PIN (6 digits): ")
             print(f"{'Locking' if args.lock else 'Unlocking'} {vehicle.display_name} ...")

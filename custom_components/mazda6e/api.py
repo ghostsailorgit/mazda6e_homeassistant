@@ -12,12 +12,12 @@ Login flow as done by the app:
   3. Every later request carries ``authorization: <token>`` and the same
      ``deviceid``. Expired tokens are renewed with the refresh token.
 
-Remote control (lock/unlock) as done by the app:
+Remote control as done by the app (climate skips step 1, it needs no PIN):
   1. security-code/get-status shows how many PIN attempts are left,
      security-code/check-code exchanges the 6-digit PIN for an ``rcToken``.
   2. serial-no/get returns a one-time serial number, RSA-encrypted with the
      public key registered at login.
-  3. control/doors gets the command, signed with the matching private key,
+  3. control/doors (or control/air-conditioner) gets the command, signed with the matching private key,
      and answers with a ``commandId``.
   4. control/control-result is polled until the car confirms or rejects it.
 """
@@ -62,6 +62,10 @@ TIMEOUT = aiohttp.ClientTimeout(total=30)
 RESULT_PENDING = -100
 RESULT_SUCCESS = (0, 1201)
 RESULT_ALREADY_DONE = 1015
+
+CLIMATE_MIN_TEMP = 16.0
+CLIMATE_MAX_TEMP = 30.0
+CLIMATE_RUN_TIME = 15  # minutes, like the app's default
 
 COMMAND_TIMEOUT = 90  # seconds the car gets to confirm a command
 COMMAND_POLL_INTERVAL = 3
@@ -403,4 +407,27 @@ class Mazda6eClient:
             {"command": "lock", "open": not locked},
             needs_pin=True,
             pin=pin,
+        )
+
+    async def set_climate(
+        self,
+        vehicle_id: str,
+        enabled: bool,
+        temperature: float,
+        run_time: int = CLIMATE_RUN_TIME,
+    ) -> None:
+        """Start (True) or stop (False) remote climate at ``temperature`` °C."""
+        if not CLIMATE_MIN_TEMP <= temperature <= CLIMATE_MAX_TEMP:
+            raise ValueError(f"Temperature must be {CLIMATE_MIN_TEMP}-{CLIMATE_MAX_TEMP} °C")
+        await self._signed_command(
+            "cma-app-car-control/api/control/air-conditioner",
+            vehicle_id,
+            {
+                "command": "air",
+                "enabled": enabled,
+                # tenths of a degree, like the temperatures in the status
+                "targetTemp": round(temperature * 10),
+                "runTime": run_time,
+            },
+            needs_pin=False,
         )
