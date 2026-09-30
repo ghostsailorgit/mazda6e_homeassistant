@@ -12,6 +12,10 @@ jobs:
       - uses: home-assistant/actions/hassfest@master
 
   hacs:
+    # HACS reads hacs.json and manifest.json anonymously from
+    # raw.githubusercontent.com and only supports public repositories, so the
+    # check can only pass once the repository is public.
+    if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     steps:
       - uses: hacs/action@main
