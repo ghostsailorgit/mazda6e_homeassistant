@@ -3,17 +3,21 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import Mazda6eClient, MazdaAuthError, MazdaError
+from .api import Mazda6eClient, MazdaApiError, MazdaAuthError, MazdaError
 from .const import DOMAIN
 from .models import Vehicle, VehicleStatus
+
+if TYPE_CHECKING:
+    from .precondition import Preconditioner
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,6 +26,12 @@ _LOGGER = logging.getLogger(__name__)
 class VehicleData:
     vehicle: Vehicle
     status: VehicleStatus
+    # function codes from function-config; empty = unknown, assume everything
+    functions: set[str] = field(default_factory=set)
+    battery_preheat_plan: dict[str, Any] | None = None
+
+    def supports(self, *codes: str) -> bool:
+        return not self.functions or any(code in self.functions for code in codes)
 
 
 type Mazda6eConfigEntry = ConfigEntry[Mazda6eCoordinator]
@@ -48,6 +58,9 @@ class Mazda6eCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]):
         )
         self.client = client
         self._vehicles: list[Vehicle] | None = None
+        self._functions: dict[str, set[str]] = {}
+        # vehicle_id -> Preconditioner, filled in async_setup_entry
+        self.preconditioners: dict[str, Preconditioner] = {}
 
     async def _async_update_data(self) -> dict[str, VehicleData]:
         try:
@@ -58,8 +71,20 @@ class Mazda6eCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]):
 
             result: dict[str, VehicleData] = {}
             for vehicle in self._vehicles:
-                status = await self.client.get_status(vehicle.vehicle_id)
-                result[vehicle.vehicle_id] = VehicleData(vehicle, status)
+                vid = vehicle.vehicle_id
+                if vid not in self._functions:
+                    try:
+                        self._functions[vid] = await self.client.get_functions(vid)
+                    except MazdaApiError as err:
+                        _LOGGER.debug("No function config for %s: %s", vid, err)
+                        self._functions[vid] = set()
+                data = VehicleData(vehicle, await self.client.get_status(vid), self._functions[vid])
+                if data.supports("#batteryScheduleHeating"):
+                    try:
+                        data.battery_preheat_plan = await self.client.get_battery_preheat_plan(vid)
+                    except MazdaApiError as err:
+                        _LOGGER.debug("No battery preheat plan for %s: %s", vid, err)
+                result[vid] = data
             return result
         except MazdaAuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err

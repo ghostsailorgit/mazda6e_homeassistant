@@ -126,6 +126,18 @@
       },
       "tire_pressure_rear_right": {
         "name": "Reifendruck hinten rechts"
+      },
+      "inside_humidity": {
+        "name": "Luftfeuchte innen"
+      },
+      "inside_pm25": {
+        "name": "Feinstaub innen (PM2,5)"
+      },
+      "precondition_next_departure": {
+        "name": "Nächste Abfahrt"
+      },
+      "precondition_next_start": {
+        "name": "Nächster Vorklimatisierungsstart"
       }
     },
     "binary_sensor": {
@@ -179,6 +191,21 @@
       },
       "window_rear_right": {
         "name": "Fenster hinten rechts"
+      },
+      "lamp_low_beam": {
+        "name": "Abblendlicht"
+      },
+      "lamp_high_beam": {
+        "name": "Fernlicht"
+      },
+      "lamp_position": {
+        "name": "Standlicht"
+      },
+      "lamp_left_turn": {
+        "name": "Blinker links"
+      },
+      "lamp_right_turn": {
+        "name": "Blinker rechts"
       }
     },
     "device_tracker": {
@@ -189,6 +216,176 @@
     "lock": {
       "door_lock": {
         "name": "Türen"
+      }
+    },
+    "climate": {
+      "cabin_climate": {
+        "name": "Klimatisierung"
+      }
+    },
+    "button": {
+      "refresh_status": {
+        "name": "Status vom Auto anfordern"
+      },
+      "flash": {
+        "name": "Lichthupe"
+      },
+      "flash_honk": {
+        "name": "Hupen und Blinken"
+      },
+      "precondition_start": {
+        "name": "Vorklimatisierung starten"
+      },
+      "precondition_stop": {
+        "name": "Vorklimatisierung stoppen"
+      },
+      "precondition_skip": {
+        "name": "Nächste Abfahrt überspringen"
+      }
+    },
+    "number": {
+      "charge_limit_control": {
+        "name": "Ladelimit einstellen"
+      },
+      "precondition_temperature": {
+        "name": "Vorklimatisierung Temperatur"
+      },
+      "precondition_lead": {
+        "name": "Vorklimatisierung Vorlaufzeit"
+      }
+    },
+    "switch": {
+      "defrost": {
+        "name": "Frontscheibe enteisen"
+      },
+      "steering_wheel_heat": {
+        "name": "Lenkradheizung"
+      },
+      "battery_preheat": {
+        "name": "Akku vorheizen (Plan im Auto)"
+      },
+      "charge_schedule": {
+        "name": "Ladezeitplan (Plan im Auto)"
+      },
+      "precondition_schedule": {
+        "name": "Vorklimatisierung Wochenplan"
+      },
+      "precondition_steering_wheel": {
+        "name": "Vorklimatisierung: Lenkradheizung"
+      },
+      "precondition_defrost": {
+        "name": "Vorklimatisierung: Enteisen"
+      },
+      "precondition_battery": {
+        "name": "Vorklimatisierung: Akku vorheizen"
+      },
+      "precondition_mon": {
+        "name": "Vorklimatisierung Montag"
+      },
+      "precondition_tue": {
+        "name": "Vorklimatisierung Dienstag"
+      },
+      "precondition_wed": {
+        "name": "Vorklimatisierung Mittwoch"
+      },
+      "precondition_thu": {
+        "name": "Vorklimatisierung Donnerstag"
+      },
+      "precondition_fri": {
+        "name": "Vorklimatisierung Freitag"
+      },
+      "precondition_sat": {
+        "name": "Vorklimatisierung Samstag"
+      },
+      "precondition_sun": {
+        "name": "Vorklimatisierung Sonntag"
+      }
+    },
+    "time": {
+      "battery_preheat_time": {
+        "name": "Akku warm um"
+      },
+      "charge_schedule_start": {
+        "name": "Ladezeitplan Start"
+      },
+      "charge_schedule_end": {
+        "name": "Ladezeitplan Ende"
+      },
+      "precondition_departure_mon": {
+        "name": "Abfahrt Montag"
+      },
+      "precondition_departure_tue": {
+        "name": "Abfahrt Dienstag"
+      },
+      "precondition_departure_wed": {
+        "name": "Abfahrt Mittwoch"
+      },
+      "precondition_departure_thu": {
+        "name": "Abfahrt Donnerstag"
+      },
+      "precondition_departure_fri": {
+        "name": "Abfahrt Freitag"
+      },
+      "precondition_departure_sat": {
+        "name": "Abfahrt Samstag"
+      },
+      "precondition_departure_sun": {
+        "name": "Abfahrt Sonntag"
+      }
+    },
+    "select": {
+      "seat_heat_driver": {
+        "name": "Sitzheizung Fahrer",
+        "state": {
+          "off": "Aus",
+          "1": "Stufe 1",
+          "2": "Stufe 2",
+          "3": "Stufe 3"
+        }
+      },
+      "seat_heat_passenger": {
+        "name": "Sitzheizung Beifahrer",
+        "state": {
+          "off": "Aus",
+          "1": "Stufe 1",
+          "2": "Stufe 2",
+          "3": "Stufe 3"
+        }
+      },
+      "seat_vent_driver": {
+        "name": "Sitzlüftung Fahrer",
+        "state": {
+          "off": "Aus",
+          "1": "Stufe 1",
+          "2": "Stufe 2",
+          "3": "Stufe 3"
+        }
+      },
+      "seat_vent_passenger": {
+        "name": "Sitzlüftung Beifahrer",
+        "state": {
+          "off": "Aus",
+          "1": "Stufe 1",
+          "2": "Stufe 2",
+          "3": "Stufe 3"
+        }
+      },
+      "precondition_seat_heat": {
+        "name": "Vorklimatisierung: Sitzheizung",
+        "state": {
+          "off": "Aus",
+          "1": "Stufe 1",
+          "2": "Stufe 2",
+          "3": "Stufe 3"
+        }
+      }
+    },
+    "cover": {
+      "windows_control": {
+        "name": "Fenster"
+      },
+      "trunk_control": {
+        "name": "Heckklappe"
       }
     }
   },
@@ -207,6 +404,74 @@
     },
     "command_failed": {
       "message": "Fernsteuerbefehl fehlgeschlagen: {error}"
+    },
+    "device_required": {
+      "message": "Es gibt mehrere Autos, bitte eines auswählen."
+    },
+    "no_control": {
+      "message": "Kein Auto mit Fernsteuerung eingerichtet."
+    },
+    "unknown_device": {
+      "message": "Dieses Gerät ist kein Mazda 6e mit Fernsteuerung."
+    },
+    "precondition_failed": {
+      "message": "Vorklimatisierung unvollständig, fehlgeschlagen: {steps}"
+    }
+  },
+  "services": {
+    "start_preconditioning": {
+      "name": "Vorklimatisierung starten",
+      "description": "Heizt oder kühlt das Auto jetzt mit dem Vorklimatisierungsprofil. Leere Felder nehmen die Werte aus dem Profil.",
+      "fields": {
+        "device_id": {
+          "name": "Auto",
+          "description": "Nur nötig bei mehreren Autos."
+        },
+        "temperature": {
+          "name": "Temperatur",
+          "description": "Zieltemperatur im Innenraum."
+        },
+        "duration": {
+          "name": "Dauer",
+          "description": "Wie lange die Klimatisierung läuft, in Minuten."
+        },
+        "seat_heat": {
+          "name": "Sitzheizung",
+          "description": "Stufe der Fahrersitzheizung, 0 = aus."
+        },
+        "steering_wheel": {
+          "name": "Lenkradheizung",
+          "description": "Lenkrad mitheizen."
+        },
+        "defrost": {
+          "name": "Enteisen",
+          "description": "Frontscheibe mit enteisen."
+        },
+        "battery": {
+          "name": "Akku vorheizen",
+          "description": "Akku mit vorheizen (Plan im Auto)."
+        }
+      }
+    },
+    "stop_preconditioning": {
+      "name": "Vorklimatisierung stoppen",
+      "description": "Schaltet Klimatisierung, Sitz- und Lenkradheizung und Enteisen aus.",
+      "fields": {
+        "device_id": {
+          "name": "Auto",
+          "description": "Nur nötig bei mehreren Autos."
+        }
+      }
+    },
+    "skip_next_departure": {
+      "name": "Nächste Abfahrt überspringen",
+      "description": "Der Wochenplan lässt die nächste Abfahrt aus, z. B. an einem Feiertag.",
+      "fields": {
+        "device_id": {
+          "name": "Auto",
+          "description": "Nur nötig bei mehreren Autos."
+        }
+      }
     }
   }
 }

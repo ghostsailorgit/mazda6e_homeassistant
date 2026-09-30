@@ -170,6 +170,9 @@ class FakeControlBackend(FakeBackend):
         self.attempts = 5
         self.serial = "SERIAL-777"
         self.commands: list[dict] = []
+        self.command_paths: list[str] = []
+        self.serial_types: list[str] = []
+        self.heating_plans: list[dict] = [{"planId": 7, "planType": 0, "isValid": 1, "endData": "20261005073000"}]
 
     async def handle(self, request: web.Request) -> web.Response:
         path = request.match_info["path"]
@@ -188,10 +191,18 @@ class FakeControlBackend(FakeBackend):
                 self.attempts -= 1
                 return web.json_response({"success": False, "code": "PIN_WRONG"})
             return web.json_response({"success": True, "data": {"rcToken": "rc-1"}})
+        if path.endswith("heating-plans/query/list"):
+            assert body == {"vehicleId": "42"}
+            return web.json_response({"success": True, "data": self.heating_plans})
         if path.endswith("serial-no/get"):
+            self.serial_types.append(body["type"])
             enc = self.public_key.encrypt(self.serial.encode(), padding.PKCS1v15())
             return web.json_response({"success": True, "data": base64.encodebytes(enc).decode()})
-        if path.endswith("control/doors"):
+        if path.endswith("control/control-result"):
+            assert body == {"commandId": "cmd-1", "vehicleId": "42"}
+            code = self.results.pop(0)
+            return web.json_response({"success": True, "data": {"resultCode": code, "errorMsg": "nope"}})
+        if "sign" in body:  # any signed command
             canonical = "&".join(
                 f"{k}={str(v).lower() if isinstance(v, bool) else v}"
                 for k, v in sorted(body.items())
@@ -200,13 +211,12 @@ class FakeControlBackend(FakeBackend):
             self.public_key.verify(  # raises InvalidSignature -> HTTP 500
                 base64.b64decode(body["sign"]), canonical.encode(), padding.PKCS1v15(), hashes.SHA256()
             )
-            assert body["seriralNo"] == self.serial and body["rcToken"] == "rc-1"
+            assert body["seriralNo"] == self.serial
+            if path.endswith("control/doors"):
+                assert body["rcToken"] == "rc-1"
             self.commands.append(body)
+            self.command_paths.append(path.removeprefix("cma-app-car-control/api/"))
             return web.json_response({"success": True, "data": {"commandId": "cmd-1"}})
-        if path.endswith("control/control-result"):
-            assert body == {"commandId": "cmd-1", "vehicleId": "42"}
-            code = self.results.pop(0)
-            return web.json_response({"success": True, "data": {"resultCode": code, "errorMsg": "nope"}})
         return web.json_response({"success": False, "code": "404"})
 
 
@@ -327,3 +337,159 @@ def test_serial_for_other_key_needs_relogin(control):
             await client.set_locked("42", True)
 
     _run_control(backend, other_private, run)
+
+
+def test_climate_on_signed_without_pin(control):
+    public, private = control
+    backend = FakeControlBackend(public, [-100, 0])
+
+    async def run(client):
+        await client.set_climate("42", True, 22.5)
+
+    _run_control(backend, private, run, pin=None)
+    body = backend.commands[0]
+    assert body["enabled"] is True
+    assert body["targetTemp"] == 225
+    assert body["runTime"] == 15
+    assert body["command"] == "air"
+    assert "rcToken" not in body
+    assert not any("security-code" in c for c in backend.calls)
+    assert "cma-app-car-control/api/control/air-conditioner" in backend.calls
+
+
+def test_climate_off(control):
+    public, private = control
+    backend = FakeControlBackend(public, [1015])  # already off counts as success
+
+    async def run(client):
+        await client.set_climate("42", False, 21)
+
+    _run_control(backend, private, run)
+    assert backend.commands[0]["enabled"] is False
+
+
+def test_climate_temperature_range(control):
+    public, private = control
+    backend = FakeControlBackend(public, [])
+
+    async def run(client):
+        with pytest.raises(ValueError):
+            await client.set_climate("42", True, 35)
+
+    _run_control(backend, private, run)
+    assert backend.calls == []
+
+
+# ------------------------------------------------------- further commands
+
+
+@pytest.mark.parametrize(
+    ("call", "path", "params", "serial_type"),
+    [
+        (lambda c: c.request_status_update("42"), "control/condition-inquiry",
+         {"command": "COMMAND_GET_NEW_CONDITION"}, "1"),
+        (lambda c: c.set_charge_limit("42", 85), "charge/percentage",
+         {"command": "charge_max", "chargePercentageMax": 85}, "2"),
+        (lambda c: c.flash_and_honk("42"), "control/flashing-honking",
+         {"command": "flash_bee", "type": 3}, "1"),
+        (lambda c: c.set_seat("42", "heat", "driver", 2), "control/seats/heat",
+         {"command": "seats_heat", "masterSwitch": 1, "masterLevel": 2}, "1"),
+        (lambda c: c.set_seat("42", "wind", "passenger", 0), "control/seats/wind",
+         {"command": "seats_wind", "copilotSwitch": 0}, "1"),
+        (lambda c: c.set_steering_wheel_heat("42", True), "control/steering-wheel/heat",
+         {"command": "steering_wheel_heating", "open": True}, "1"),
+        (lambda c: c.set_defrost("42", False), "control/defrost",
+         {"command": "defrost", "enabled": False}, "1"),
+    ],
+)
+def test_commands_without_pin(control, call, path, params, serial_type):
+    public, private = control
+    backend = FakeControlBackend(public, [0])
+
+    async def run(client):
+        await call(client)
+
+    _run_control(backend, private, run, pin=None)
+    body = dict(backend.commands[0])
+    for key in ("sign", "seriralNo", "vehicleId"):
+        body.pop(key)
+    assert body == params
+    assert backend.command_paths == [path]
+    assert backend.serial_types == [serial_type]
+    assert not any("security-code" in c for c in backend.calls)
+
+
+@pytest.mark.parametrize(
+    ("call", "path", "params"),
+    [
+        (lambda c: c.set_windows("42", True), "control/windows", {"command": "window", "open": True, "openType": 10}),
+        (lambda c: c.set_trunk("42", False), "control/trunk", {"command": "trunk", "open": False}),
+    ],
+)
+def test_commands_with_pin(control, call, path, params):
+    public, private = control
+    backend = FakeControlBackend(public, [0])
+
+    async def run(client):
+        await call(client)
+
+    _run_control(backend, private, run)
+    body = dict(backend.commands[0])
+    assert body.pop("rcToken") == "rc-1"
+    for key in ("sign", "seriralNo", "vehicleId"):
+        body.pop(key)
+    assert body == params
+    assert backend.command_paths == [path]
+
+
+def test_battery_preheat_plan(control):
+    public, private = control
+    backend = FakeControlBackend(public, [0, 0])
+
+    async def run(client):
+        plan = await client.get_battery_preheat_plan("42")
+        assert plan["planId"] == 7
+        await client.set_battery_preheat("42", plan, "20261006070000")
+        await client.set_battery_preheat("42", plan, None)
+
+    _run_control(backend, private, run)
+    assert backend.command_paths == ["heating-plans/update-plan", "heating-plans/plan-availability"]
+    assert backend.serial_types == ["5", "5"]
+    assert backend.commands[0]["endData"] == "20261006070000"
+    assert backend.commands[0]["planId"] == "7"
+    assert backend.commands[1]["enabled"] is False
+
+
+def test_charge_plan(control):
+    public, private = control
+    backend = FakeControlBackend(public, [0])
+    plan = {"planId": 5, "planType": 1, "timeFormat": 1, "timeZone": "GMT+02:00"}
+
+    async def run(client):
+        await client.set_charge_plan("42", plan, start="2230", end="0600", enabled=True)
+        with pytest.raises(ValueError):
+            await client.set_charge_plan("42", plan, start="22:30", end="0600", enabled=True)
+        with pytest.raises(ValueError):
+            await client.set_charge_plan("42", {"planId": 5}, start="2230", end="0600", enabled=True)
+
+    _run_control(backend, private, run)
+    body = backend.commands[0]
+    assert backend.command_paths == ["charge/modify-plan"]
+    assert (body["startTime"], body["endTime"], body["endSwitch"], body["timeZone"]) == (
+        "2230", "0600", 1, "GMT+02:00"
+    )
+    assert backend.serial_types == ["2"]
+
+
+def test_value_checks_before_sending(control):
+    public, private = control
+    backend = FakeControlBackend(public, [])
+
+    async def run(client):
+        with pytest.raises(ValueError):
+            await client.set_charge_limit("42", 50)
+        with pytest.raises(ValueError):
+            await client.set_seat("42", "heat", "driver", 4)
+
+    _run_control(backend, private, run)
+    assert backend.calls == []

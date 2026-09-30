@@ -1,0 +1,49 @@
+start_preconditioning:
+  fields:
+    device_id:
+      selector:
+        device:
+          integration: mazda6e
+    temperature:
+      example: 21
+      selector:
+        number:
+          min: 16
+          max: 30
+          step: 0.5
+          unit_of_measurement: "°C"
+    duration:
+      example: 15
+      selector:
+        number:
+          min: 5
+          max: 30
+          unit_of_measurement: min
+    seat_heat:
+      selector:
+        number:
+          min: 0
+          max: 3
+    steering_wheel:
+      selector:
+        boolean:
+    defrost:
+      selector:
+        boolean:
+    battery:
+      selector:
+        boolean:
+
+stop_preconditioning:
+  fields:
+    device_id:
+      selector:
+        device:
+          integration: mazda6e
+
+skip_next_departure:
+  fields:
+    device_id:
+      selector:
+        device:
+          integration: mazda6e

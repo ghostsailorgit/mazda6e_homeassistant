@@ -12,13 +12,14 @@ Login flow as done by the app:
   3. Every later request carries ``authorization: <token>`` and the same
      ``deviceid``. Expired tokens are renewed with the refresh token.
 
-Remote control (lock/unlock) as done by the app:
+Remote control as done by the app (climate skips step 1, it needs no PIN):
   1. security-code/get-status shows how many PIN attempts are left,
      security-code/check-code exchanges the 6-digit PIN for an ``rcToken``.
   2. serial-no/get returns a one-time serial number, RSA-encrypted with the
      public key registered at login.
-  3. control/doors gets the command, signed with the matching private key,
-     and answers with a ``commandId``.
+  3. The command endpoint (control/doors, control/air-conditioner, ...) gets
+     the command, signed with the matching private key, and answers with a
+     ``commandId``.
   4. control/control-result is polled until the car confirms or rejects it.
 """
 
@@ -62,6 +63,23 @@ TIMEOUT = aiohttp.ClientTimeout(total=30)
 RESULT_PENDING = -100
 RESULT_SUCCESS = (0, 1201)
 RESULT_ALREADY_DONE = 1015
+
+CLIMATE_MIN_TEMP = 16.0
+CLIMATE_MAX_TEMP = 30.0
+CLIMATE_RUN_TIME = 15  # minutes, like the app's default
+
+CHARGE_LIMIT_MIN = 60
+CHARGE_LIMIT_MAX = 100
+SEAT_LEVELS = (1, 2, 3)
+
+# flashing-honking "type"
+FLASH_ONLY = 1
+FLASH_AND_HONK = 3
+
+# serial-no/get "type" per command family, as the app requests it
+SERIAL_CONTROL = "1"
+SERIAL_CHARGE = "2"
+SERIAL_HEATING_PLAN = "5"
 
 COMMAND_TIMEOUT = 90  # seconds the car gets to confirm a command
 COMMAND_POLL_INTERVAL = 3
@@ -344,6 +362,7 @@ class Mazda6eClient:
         *,
         needs_pin: bool,
         pin: str | None = None,
+        serial_type: str = "1",
     ) -> dict[str, Any]:
         if not self.private_key:
             raise MazdaAuthError("No control key registered, please log in again")
@@ -353,7 +372,9 @@ class Mazda6eClient:
             if needs_pin:
                 payload["rcToken"] = await self.get_rc_token(pin)
 
-            serial = await self._request("cma-app-car-control/api/serial-no/get", {"type": "1"})
+            serial = await self._request(
+                "cma-app-car-control/api/serial-no/get", {"type": serial_type}
+            )
             if not isinstance(serial, str):
                 raise MazdaApiError("Serial number response was empty")
             try:
@@ -404,3 +425,195 @@ class Mazda6eClient:
             needs_pin=True,
             pin=pin,
         )
+
+    async def set_climate(
+        self,
+        vehicle_id: str,
+        enabled: bool,
+        temperature: float,
+        run_time: int = CLIMATE_RUN_TIME,
+    ) -> None:
+        """Start (True) or stop (False) remote climate at ``temperature`` °C."""
+        if not CLIMATE_MIN_TEMP <= temperature <= CLIMATE_MAX_TEMP:
+            raise ValueError(f"Temperature must be {CLIMATE_MIN_TEMP}-{CLIMATE_MAX_TEMP} °C")
+        await self._signed_command(
+            "cma-app-car-control/api/control/air-conditioner",
+            vehicle_id,
+            {
+                "command": "air",
+                "enabled": enabled,
+                # tenths of a degree, like the temperatures in the status
+                "targetTemp": round(temperature * 10),
+                "runTime": run_time,
+            },
+            needs_pin=False,
+        )
+
+    # ------------------------------------------------------ more commands
+
+    async def request_status_update(self, vehicle_id: str) -> None:
+        """Wake the car and make it send a fresh status to the cloud."""
+        await self._signed_command(
+            "cma-app-car-control/api/control/condition-inquiry",
+            vehicle_id,
+            {"command": "COMMAND_GET_NEW_CONDITION"},
+            needs_pin=False,
+        )
+
+    async def set_charge_limit(self, vehicle_id: str, percent: int) -> None:
+        if not CHARGE_LIMIT_MIN <= percent <= CHARGE_LIMIT_MAX:
+            raise ValueError(f"Charge limit must be {CHARGE_LIMIT_MIN}-{CHARGE_LIMIT_MAX} %")
+        await self._signed_command(
+            "cma-app-car-control/api/charge/percentage",
+            vehicle_id,
+            {"command": "charge_max", "chargePercentageMax": int(percent)},
+            needs_pin=False,
+            serial_type=SERIAL_CHARGE,
+        )
+
+    async def flash_and_honk(self, vehicle_id: str, action: int = FLASH_AND_HONK) -> None:
+        await self._signed_command(
+            "cma-app-car-control/api/control/flashing-honking",
+            vehicle_id,
+            {"command": "flash_bee", "type": action},
+            needs_pin=False,
+        )
+
+    async def set_seat(
+        self, vehicle_id: str, kind: str, seat: str, level: int
+    ) -> None:
+        """Seat heating (kind "heat") or ventilation ("wind"); level 0 = off.
+
+        seat is "driver" or "passenger". Turning off must send switch 0 without
+        a level, the backend rejects level 0.
+        """
+        if kind not in ("heat", "wind"):
+            raise ValueError("kind must be heat or wind")
+        prefix = {"driver": "master", "passenger": "copilot"}[seat]
+        if level and level not in SEAT_LEVELS:
+            raise ValueError("Seat level must be 0-3")
+        params: dict[str, Any] = {
+            "command": f"seats_{kind}",
+            f"{prefix}Switch": 1 if level else 0,
+        }
+        if level:
+            params[f"{prefix}Level"] = level
+        await self._signed_command(
+            f"cma-app-car-control/api/control/seats/{kind}", vehicle_id, params, needs_pin=False
+        )
+
+    async def set_steering_wheel_heat(self, vehicle_id: str, on: bool) -> None:
+        await self._signed_command(
+            "cma-app-car-control/api/control/steering-wheel/heat",
+            vehicle_id,
+            {"command": "steering_wheel_heating", "open": on},
+            needs_pin=False,
+        )
+
+    async def set_defrost(self, vehicle_id: str, on: bool) -> None:
+        await self._signed_command(
+            "cma-app-car-control/api/control/defrost",
+            vehicle_id,
+            {"command": "defrost", "enabled": on},
+            needs_pin=False,
+        )
+
+    async def set_windows(self, vehicle_id: str, open_: bool, pin: str | None = None) -> None:
+        """Open or close all windows (needs the control PIN)."""
+        await self._signed_command(
+            "cma-app-car-control/api/control/windows",
+            vehicle_id,
+            {"command": "window", "open": open_, "openType": 10},
+            needs_pin=True,
+            pin=pin,
+        )
+
+    async def set_trunk(self, vehicle_id: str, open_: bool, pin: str | None = None) -> None:
+        """Open or close the tailgate (needs the control PIN)."""
+        await self._signed_command(
+            "cma-app-car-control/api/control/trunk",
+            vehicle_id,
+            {"command": "trunk", "open": open_},
+            needs_pin=True,
+            pin=pin,
+        )
+
+    # --------------------------------------------------- plans on the car
+
+    async def get_battery_preheat_plan(self, vehicle_id: str) -> dict[str, Any] | None:
+        """The car's battery preheating plan (planType 0), if it has one."""
+        plans = await self._request(
+            "cma-app-car-control/api/heating-plans/query/list", {"vehicleId": vehicle_id}
+        )
+        if not isinstance(plans, list):
+            return None
+        return next(
+            (p for p in plans if isinstance(p, dict) and p.get("planType") == 0), None
+        )
+
+    async def set_battery_preheat(
+        self, vehicle_id: str, plan: dict[str, Any], departure: str | None
+    ) -> None:
+        """Enable the preheat plan for ``departure`` (YYYYmmddHHMMSS) or disable it (None)."""
+        if departure is None:
+            path = "cma-app-car-control/api/heating-plans/plan-availability"
+            params = {
+                "command": "COMMAND_HEATING_PLANS_AVAILABILITY",
+                "enabled": False,
+                "planId": str(plan["planId"]),
+            }
+        else:
+            path = "cma-app-car-control/api/heating-plans/update-plan"
+            params = {
+                "command": "COMMAND_HEATING_PLANS_UPDATE",
+                "endData": departure,
+                "planId": str(plan["planId"]),
+                "planType": plan.get("planType", 0),
+            }
+        await self._signed_command(
+            path, vehicle_id, params, needs_pin=False, serial_type=SERIAL_HEATING_PLAN
+        )
+
+    async def set_charge_plan(
+        self,
+        vehicle_id: str,
+        plan: dict[str, Any],
+        *,
+        start: str,
+        end: str,
+        enabled: bool,
+    ) -> None:
+        """Change the car's charging schedule. start/end as "HHMM".
+
+        Plan id, type, time format and time zone are taken from the plan the
+        car reported, so nothing is guessed.
+        """
+        for value in (start, end):
+            if len(value) != 4 or not value.isdigit():
+                raise ValueError("Times must be HHMM")
+        if not plan.get("timeZone") or plan.get("planId") is None:
+            raise ValueError("The car reported an incomplete charging plan")
+        await self._signed_command(
+            "cma-app-car-control/api/charge/modify-plan",
+            vehicle_id,
+            {
+                "command": "modify-plan",
+                "planId": str(plan["planId"]),
+                "planType": plan.get("planType", 1),
+                "startTime": start,
+                "endTime": end,
+                "endSwitch": 1 if enabled else 0,
+                "timeFormat": plan.get("timeFormat", 1),
+                "timeZone": plan["timeZone"],
+            },
+            needs_pin=False,
+            serial_type=SERIAL_CHARGE,
+        )
+
+    async def get_functions(self, vehicle_id: str) -> set[str]:
+        """Function codes the car supports, e.g. "#driverSeatHeat"; empty if unknown."""
+        data = await self._request(
+            "cma-app-user/api/vehicle/function-config", {"vehicleId": vehicle_id}
+        )
+        codes = (data or {}).get("confList") if isinstance(data, dict) else None
+        return {str(c) for c in codes} if isinstance(codes, list) else set()

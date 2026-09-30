@@ -125,6 +125,24 @@ class VehicleStatus:
     inside_temperature: float | None = None
     target_temperature: float | None = None
     climate_on: bool | None = None
+    defrost_on: bool | None = None
+    steering_wheel_heat_on: bool | None = None
+    inside_humidity: float | None = None
+    inside_pm25: float | None = None
+
+    # seats: level 0 (off) to 3
+    seat_heat_driver: int | None = None
+    seat_heat_passenger: int | None = None
+    seat_heat_rear_left: int | None = None
+    seat_heat_rear_right: int | None = None
+    seat_vent_driver: int | None = None
+    seat_vent_passenger: int | None = None
+
+    # exterior lights
+    lamps: dict[str, bool | None] = field(default_factory=dict)
+
+    # first charging schedule the car reports (raw, needed to modify it)
+    charge_plan: dict[str, Any] | None = None
 
     # general
     vehicle_state: str | None = None
@@ -177,6 +195,20 @@ class VehicleStatus:
         hvac = raw.get("hvac") or {}
         tire = raw.get("tire") or {}
         location = raw.get("location") or {}
+        seat = raw.get("seat") or {}
+        lamp = raw.get("lamp") or {}
+        plans = charge.get("chargePlanList")
+        charge_plan = plans[0] if isinstance(plans, list) and plans and isinstance(plans[0], dict) else None
+
+        def seat_level(position: str, key: str) -> int | None:
+            data = seat.get(position)
+            if not isinstance(data, dict):
+                return None
+            value = data.get(key)
+            if value is None and key == "heatStatus":
+                value = data.get("level")
+            level = _int(value)
+            return max(level, 0) if level is not None else None
 
         charge_code = _int(charge.get("chargeStatus"))
         remaining = _int(charge.get("remainChargeTime"))
@@ -240,6 +272,27 @@ class VehicleStatus:
             inside_temperature=_tenths(hvac.get("insideTemp")),
             target_temperature=_tenths(hvac.get("remoteTemp")),
             climate_on=_flag(hvac.get("acStatus")),
+            defrost_on=_flag(hvac.get("defrostStatus")),
+            steering_wheel_heat_on=_flag(status.get("steeringWheelHeater")),
+            inside_humidity=_num(hvac.get("insideHumidity")),
+            inside_pm25=_num(hvac.get("insidePm25")),
+            seat_heat_driver=seat_level("leftFront", "heatStatus"),
+            seat_heat_passenger=seat_level("rightFront", "heatStatus"),
+            seat_heat_rear_left=seat_level("leftBack", "heatStatus"),
+            seat_heat_rear_right=seat_level("rightBack", "heatStatus"),
+            seat_vent_driver=seat_level("leftFront", "ventStatus"),
+            seat_vent_passenger=seat_level("rightFront", "ventStatus"),
+            lamps={
+                name: _flag(lamp.get(key))
+                for name, key in (
+                    ("low_beam", "lowBeam"),
+                    ("high_beam", "highBeam"),
+                    ("position", "positionLamp"),
+                    ("left_turn", "leftTurn"),
+                    ("right_turn", "rightTurn"),
+                )
+            },
+            charge_plan=charge_plan,
             vehicle_state=VEHICLE_STATE.get(_int(status.get("status"))),
             power_state=POWER_STATE.get(_int(status.get("powerStatus"))),
             speed_kmh=speed,

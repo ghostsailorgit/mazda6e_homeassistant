@@ -126,6 +126,18 @@
       },
       "tire_pressure_rear_right": {
         "name": "Tire pressure rear right"
+      },
+      "inside_humidity": {
+        "name": "Interior humidity"
+      },
+      "inside_pm25": {
+        "name": "Interior PM2.5"
+      },
+      "precondition_next_departure": {
+        "name": "Next departure"
+      },
+      "precondition_next_start": {
+        "name": "Next pre-conditioning start"
       }
     },
     "binary_sensor": {
@@ -179,6 +191,21 @@
       },
       "window_rear_right": {
         "name": "Window rear right"
+      },
+      "lamp_low_beam": {
+        "name": "Low beam"
+      },
+      "lamp_high_beam": {
+        "name": "High beam"
+      },
+      "lamp_position": {
+        "name": "Position lights"
+      },
+      "lamp_left_turn": {
+        "name": "Left indicator"
+      },
+      "lamp_right_turn": {
+        "name": "Right indicator"
       }
     },
     "device_tracker": {
@@ -189,6 +216,176 @@
     "lock": {
       "door_lock": {
         "name": "Doors"
+      }
+    },
+    "climate": {
+      "cabin_climate": {
+        "name": "Climate"
+      }
+    },
+    "button": {
+      "refresh_status": {
+        "name": "Request status update"
+      },
+      "flash": {
+        "name": "Flash lights"
+      },
+      "flash_honk": {
+        "name": "Flash and honk"
+      },
+      "precondition_start": {
+        "name": "Start pre-conditioning"
+      },
+      "precondition_stop": {
+        "name": "Stop pre-conditioning"
+      },
+      "precondition_skip": {
+        "name": "Skip next departure"
+      }
+    },
+    "number": {
+      "charge_limit_control": {
+        "name": "Set charge limit"
+      },
+      "precondition_temperature": {
+        "name": "Pre-conditioning temperature"
+      },
+      "precondition_lead": {
+        "name": "Pre-conditioning lead time"
+      }
+    },
+    "switch": {
+      "defrost": {
+        "name": "Defrost windscreen"
+      },
+      "steering_wheel_heat": {
+        "name": "Steering wheel heating"
+      },
+      "battery_preheat": {
+        "name": "Battery preheating (car plan)"
+      },
+      "charge_schedule": {
+        "name": "Charging schedule (car plan)"
+      },
+      "precondition_schedule": {
+        "name": "Pre-conditioning weekly plan"
+      },
+      "precondition_steering_wheel": {
+        "name": "Pre-conditioning: steering wheel heating"
+      },
+      "precondition_defrost": {
+        "name": "Pre-conditioning: defrost"
+      },
+      "precondition_battery": {
+        "name": "Pre-conditioning: battery preheating"
+      },
+      "precondition_mon": {
+        "name": "Pre-conditioning Monday"
+      },
+      "precondition_tue": {
+        "name": "Pre-conditioning Tuesday"
+      },
+      "precondition_wed": {
+        "name": "Pre-conditioning Wednesday"
+      },
+      "precondition_thu": {
+        "name": "Pre-conditioning Thursday"
+      },
+      "precondition_fri": {
+        "name": "Pre-conditioning Friday"
+      },
+      "precondition_sat": {
+        "name": "Pre-conditioning Saturday"
+      },
+      "precondition_sun": {
+        "name": "Pre-conditioning Sunday"
+      }
+    },
+    "time": {
+      "battery_preheat_time": {
+        "name": "Battery warm at"
+      },
+      "charge_schedule_start": {
+        "name": "Charging schedule start"
+      },
+      "charge_schedule_end": {
+        "name": "Charging schedule end"
+      },
+      "precondition_departure_mon": {
+        "name": "Departure Monday"
+      },
+      "precondition_departure_tue": {
+        "name": "Departure Tuesday"
+      },
+      "precondition_departure_wed": {
+        "name": "Departure Wednesday"
+      },
+      "precondition_departure_thu": {
+        "name": "Departure Thursday"
+      },
+      "precondition_departure_fri": {
+        "name": "Departure Friday"
+      },
+      "precondition_departure_sat": {
+        "name": "Departure Saturday"
+      },
+      "precondition_departure_sun": {
+        "name": "Departure Sunday"
+      }
+    },
+    "select": {
+      "seat_heat_driver": {
+        "name": "Seat heating driver",
+        "state": {
+          "off": "Off",
+          "1": "Level 1",
+          "2": "Level 2",
+          "3": "Level 3"
+        }
+      },
+      "seat_heat_passenger": {
+        "name": "Seat heating passenger",
+        "state": {
+          "off": "Off",
+          "1": "Level 1",
+          "2": "Level 2",
+          "3": "Level 3"
+        }
+      },
+      "seat_vent_driver": {
+        "name": "Seat ventilation driver",
+        "state": {
+          "off": "Off",
+          "1": "Level 1",
+          "2": "Level 2",
+          "3": "Level 3"
+        }
+      },
+      "seat_vent_passenger": {
+        "name": "Seat ventilation passenger",
+        "state": {
+          "off": "Off",
+          "1": "Level 1",
+          "2": "Level 2",
+          "3": "Level 3"
+        }
+      },
+      "precondition_seat_heat": {
+        "name": "Pre-conditioning: seat heating",
+        "state": {
+          "off": "Off",
+          "1": "Level 1",
+          "2": "Level 2",
+          "3": "Level 3"
+        }
+      }
+    },
+    "cover": {
+      "windows_control": {
+        "name": "Windows"
+      },
+      "trunk_control": {
+        "name": "Tailgate"
       }
     }
   },
@@ -207,6 +404,74 @@
     },
     "command_failed": {
       "message": "Remote command failed: {error}"
+    },
+    "device_required": {
+      "message": "There is more than one car, please choose one."
+    },
+    "no_control": {
+      "message": "No car with remote control is set up."
+    },
+    "unknown_device": {
+      "message": "This device is not a Mazda 6e with remote control."
+    },
+    "precondition_failed": {
+      "message": "Pre-conditioning incomplete, failed steps: {steps}"
+    }
+  },
+  "services": {
+    "start_preconditioning": {
+      "name": "Start pre-conditioning",
+      "description": "Heats or cools the car now with the pre-conditioning profile. Fields left empty use the profile values.",
+      "fields": {
+        "device_id": {
+          "name": "Car",
+          "description": "Only needed with more than one car."
+        },
+        "temperature": {
+          "name": "Temperature",
+          "description": "Cabin target temperature."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "How long climate runs, in minutes."
+        },
+        "seat_heat": {
+          "name": "Seat heating",
+          "description": "Driver seat heating level, 0 = off."
+        },
+        "steering_wheel": {
+          "name": "Steering wheel heating",
+          "description": "Also heat the steering wheel."
+        },
+        "defrost": {
+          "name": "Defrost",
+          "description": "Also defrost the windscreen."
+        },
+        "battery": {
+          "name": "Battery preheating",
+          "description": "Also preheat the battery (car's own plan)."
+        }
+      }
+    },
+    "stop_preconditioning": {
+      "name": "Stop pre-conditioning",
+      "description": "Switches off climate, seat and steering wheel heating and defrost.",
+      "fields": {
+        "device_id": {
+          "name": "Car",
+          "description": "Only needed with more than one car."
+        }
+      }
+    },
+    "skip_next_departure": {
+      "name": "Skip next departure",
+      "description": "The weekly plan leaves out its next departure, e.g. on a holiday.",
+      "fields": {
+        "device_id": {
+          "name": "Car",
+          "description": "Only needed with more than one car."
+        }
+      }
     }
   }
 }
