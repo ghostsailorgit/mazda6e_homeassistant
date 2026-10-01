@@ -191,6 +191,70 @@ async def test_settings_are_stored(hass: HomeAssistant, client, hass_storage) ->
     assert hass_storage[key]["data"]["days"]["fri"] == {"on": True, "time": "08:10"}
 
 
+async def test_schedule_skipped_when_forecast_not_cold_enough(hass: HomeAssistant, client, freezer) -> None:
+    freezer.move_to(_local(2026, 10, 5, 6, 0))
+    await _setup(hass)
+    events = async_capture_events(hass, EVENT_PRECONDITIONING)
+    hass.states.async_set("weather.test", "sunny")
+    await hass.services.async_call(
+        "select",
+        "select_option",
+        {"entity_id": "select.mazda_6e_pre_conditioning_weather_source", "option": "weather.test"},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        "number",
+        "set_value",
+        {"entity_id": "number.mazda_6e_pre_conditioning_minimum_temperature", "value": 10},
+        blocking=True,
+    )
+    await _turn_on(hass, "switch.mazda_6e_pre_conditioning_weekly_plan")
+
+    with patch(
+        "custom_components.mazda6e.precondition.Preconditioner._async_forecast_temperature",
+        AsyncMock(return_value=15.0),
+    ):
+        freezer.move_to(_local(2026, 10, 5, 7, 15))
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done()
+
+    client["set_climate"].assert_not_awaited()
+    assert events[-1].data["action"] == "skipped"
+    # still reschedules for the next day
+    assert dt_util.parse_datetime(hass.states.get("sensor.mazda_6e_next_departure").state) == _local(
+        2026, 10, 6, 7, 30
+    )
+
+
+async def test_schedule_runs_when_forecast_is_cold(hass: HomeAssistant, client, freezer) -> None:
+    freezer.move_to(_local(2026, 10, 5, 6, 0))
+    await _setup(hass)
+    hass.states.async_set("weather.test", "snowy")
+    await hass.services.async_call(
+        "select",
+        "select_option",
+        {"entity_id": "select.mazda_6e_pre_conditioning_weather_source", "option": "weather.test"},
+        blocking=True,
+    )
+    await hass.services.async_call(
+        "number",
+        "set_value",
+        {"entity_id": "number.mazda_6e_pre_conditioning_minimum_temperature", "value": 10},
+        blocking=True,
+    )
+    await _turn_on(hass, "switch.mazda_6e_pre_conditioning_weekly_plan")
+
+    with patch(
+        "custom_components.mazda6e.precondition.Preconditioner._async_forecast_temperature",
+        AsyncMock(return_value=2.0),
+    ):
+        freezer.move_to(_local(2026, 10, 5, 7, 15))
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done()
+
+    client["set_climate"].assert_awaited_once_with("42", True, 21.0, run_time=15)
+
+
 async def test_plan_button_reports_failed_steps(hass: HomeAssistant, client) -> None:
     await _setup(hass)
     client["set_climate"].side_effect = MazdaCommandError("offline")

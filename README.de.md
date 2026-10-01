@@ -150,6 +150,12 @@ funktioniert auch, wenn die Cloud kurz nicht erreichbar ist.
 - *Vorklimatisierung: Lenkradheizung*, *…: Enteisen*
 - *Vorklimatisierung: Akku vorheizen* – setzt den Akku-Vorheizplan des Autos immer auf die
   nächste geplante Abfahrt (der Akku braucht mehr Vorlauf, das regelt das Auto selbst)
+- *Vorklimatisierung: Wetterquelle* – wähle eine `weather.*`-Entität, um nur bei Bedarf
+  vorzuklimatisieren; *Aus* (Standard) klimatisiert immer vor
+- *Vorklimatisierung: Mindesttemperatur* – ist eine Wetterquelle gewählt, läuft der
+  Wochenplan nur, wenn die stündliche Vorhersage für die Abfahrtszeit unter diesem Wert
+  liegt. Schlägt die Wetterabfrage fehl (Integrationsaussetzer, keine Vorhersagedaten),
+  wird trotzdem vorklimatisiert – ein Fehler blockiert nie das Vorheizen
 
 **Wochenplan:** Schalter *Vorklimatisierung Wochenplan* (Hauptschalter), dazu pro
 Wochentag ein Schalter *Vorklimatisierung Montag…Sonntag* und eine Uhrzeit

@@ -56,6 +56,17 @@ PLAN_NUMBERS: dict[str, NumberEntityDescription] = {
         mode=NumberMode.BOX,
         entity_category=EntityCategory.CONFIG,
     ),
+    "cold_below": NumberEntityDescription(
+        key="precondition_cold_below",
+        translation_key="precondition_cold_below",
+        icon="mdi:thermometer-low",
+        native_min_value=-20,
+        native_max_value=30,
+        native_step=0.5,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        mode=NumberMode.BOX,
+        entity_category=EntityCategory.CONFIG,
+    ),
 }
 
 

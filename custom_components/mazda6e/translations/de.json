@@ -247,6 +247,9 @@
       },
       "precondition_lead": {
         "name": "Vorklimatisierung Vorlaufzeit"
+      },
+      "precondition_cold_below": {
+        "name": "Vorklimatisierung: Mindesttemperatur"
       }
     },
     "switch": {
@@ -372,6 +375,12 @@
           "1": "Stufe 1",
           "2": "Stufe 2",
           "3": "Stufe 3"
+        }
+      },
+      "precondition_weather_entity": {
+        "name": "Vorklimatisierung: Wetterquelle",
+        "state": {
+          "none": "Aus (immer vorklimatisieren)"
         }
       }
     },

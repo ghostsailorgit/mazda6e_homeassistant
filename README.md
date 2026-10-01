@@ -147,6 +147,12 @@ works if the cloud is briefly unreachable.
 - *Pre-conditioning: battery preheating* — always sets the car's own battery preheat
   plan to the next scheduled departure (the battery needs more lead time, which the
   car manages itself)
+- *Pre-conditioning: weather source* — pick a `weather.*` entity to only pre-condition
+  when needed; *off* (default) always pre-conditions
+- *Pre-conditioning: minimum temperature* — with a weather source selected, the
+  schedule only runs if the hourly forecast for the departure time is below this
+  value. A weather lookup that fails (integration hiccup, no forecast data) never
+  blocks pre-conditioning — it runs as if no threshold were set
 
 **Weekly schedule:** switch *Pre-conditioning weekly plan* (main switch), plus one
 switch *Pre-conditioning Monday…Sunday* and one time *Departure Monday…Sunday* per
