@@ -1,99 +1,98 @@
-# Mazda 6e für Home Assistant
+🇩🇪 **Deutsche Version:** [README.de.md](README.de.md)
 
-Custom Integration, die die Daten eines **Mazda 6e** (und CX-6e) aus der Cloud der
-offiziellen App **„MAZDA 6e & CX-6e“** abruft und in Home Assistant anzeigt.
+# Mazda 6e for Home Assistant
 
-> Inoffiziell, nicht von Mazda unterstützt. Die API ist nicht dokumentiert und kann
-> sich jederzeit ändern.
+Custom integration that pulls data for a **Mazda 6e** (and CX-6e) from the cloud
+backend used by the official **"MAZDA 6e & CX-6e"** app and shows it in Home Assistant.
 
-## Hintergrund (Recherche)
+> Unofficial, not supported by Mazda. The API is undocumented and can change at any time.
 
-Der Mazda 6e basiert auf einer Plattform von Changan (Deepal SL03). Die App spricht
-deshalb **nicht** mit dem alten MyMazda-Backend (das von `pymazda` genutzt wurde),
-sondern mit Changans „CMA“-Gateway:
+## Background (research)
 
-| Region | Basis-URL |
+The Mazda 6e is built on a Changan platform (Deepal SL03). The app therefore does
+**not** talk to the old MyMazda backend (the one used by `pymazda`), but to Changan's
+"CMA" gateway:
+
+| Region | Base URL |
 | --- | --- |
-| Europa | `https://cma-m.iov.changanauto.com.de/cma-app-gw` |
-| Asien/Pazifik | `https://cma.iov.changanauto.sg/cma-app-gw` |
+| Europe | `https://cma-m.iov.changanauto.com.de/cma-app-gw` |
+| Asia/Pacific | `https://cma.iov.changanauto.sg/cma-app-gw` |
 
-Ablauf wie in der App:
+Flow, same as the app:
 
-1. `cma-app-auth/api/login/email-pass-in/v2` – E-Mail und Passwort werden mit einem
-   in der App eingebetteten RSA-Schlüssel verschlüsselt; zusätzlich wird ein
-   eigener öffentlicher Schlüssel (`pubKey`) registriert.
-2. Bei einem neuen Gerät (`emailVerify: true`) schickt Mazda einen Code per E-Mail
-   (`send-email/device-login/send`), der mit `login-device/email-verify` bestätigt wird.
-3. Fahrzeugliste: `cma-app-user/api/car/vehicles` (bzw. `vehicle/vehicles`)
+1. `cma-app-auth/api/login/email-pass-in/v2` – email and password are encrypted with
+   an RSA key embedded in the app; the client also registers its own public key
+   (`pubKey`).
+2. For a new device (`emailVerify: true`), Mazda sends a code by email
+   (`send-email/device-login/send`), confirmed via `login-device/email-verify`.
+3. Vehicle list: `cma-app-user/api/car/vehicles` (or `vehicle/vehicles`)
 4. Status: `cma-app-car-condition/api/vehicle/condition/v2`
-5. Token-Erneuerung: `cma-app-auth/api/auth/refresh-token`
+5. Token refresh: `cma-app-auth/api/auth/refresh-token`
 
-Die Protokolldetails stammen aus den bestehenden Community-Projekten
+The protocol details come from the existing community projects
 [fano0001/home-assistant-mazda-6e](https://github.com/fano0001/home-assistant-mazda-6e) (Apache-2.0)
-und [Sunek0/ha-mazda-6e-cx6](https://github.com/Sunek0/ha-mazda-6e-cx6) (MIT).
+and [Sunek0/ha-mazda-6e-cx6](https://github.com/Sunek0/ha-mazda-6e-cx6) (MIT).
 
-## Was angezeigt wird
+## What it shows
 
-| Bereich | Entitäten |
+| Area | Entities |
 | --- | --- |
-| Akku | Akkustand (%), Reichweite, Ladelimit |
-| Laden | Ladestrom (Summe Phasen), AC-Ladestrom/Akkustrom (standardmäßig deaktiviert), Ladestatus, Restladezeit, Ladekabel eingesteckt, Lädt |
-| Offen/Zu | Verriegelung, Türen (gesamt + einzeln), Kofferraum, Motorhaube, Fenster (gesamt + einzeln) |
-| Sonstiges | Kilometerstand, Innentemperatur, Klimaanlage an, Fahrzeugzustand (fährt/geparkt), Reifendruck, Online-Status, Zeitpunkt der letzten Meldung |
+| Battery | Battery level (%), range, charge limit |
+| Charging | Charging current (sum of phases), AC charging current/battery current (disabled by default), charging status, remaining charge time, charging cable plugged in, charging |
+| Open/closed | Lock, doors (overall + individual), trunk, hood, windows (overall + individual) |
+| Other | Odometer, interior temperature, climate control on, vehicle state (driving/parked), tire pressure, online status, time of last update |
 
-> Standort wird nicht angezeigt: Das Auto meldet in der Cloud-API keine Koordinaten
-> (auch die offizielle App zeigt keinen Standort an), daher gibt es keine
-> Standort-Entität.
+> Location is not shown: the cloud API does not report GPS coordinates for this car
+> (the official app doesn't show a location either), so there is no `device_tracker`
+> entity.
 
-Hinweis zur Verriegelung: Die Entität hat die Geräteklasse *Schloss*, d. h. **„Ein“ =
-entriegelt**, „Aus“ = verriegelt.
+Note on the lock: the entity uses the *lock* device class, so **"on" (unlocked) /
+"off" (locked)** — the inverse of what you might expect from the name.
 
-## Fernverriegelung
+## Remote lock
 
-Die Entität **`lock.<auto>_turen`** („Türen“) verriegelt und entriegelt das Auto aus der
-Ferne – wie der Schloss-Knopf in der App. Dafür wird die **6-stellige Steuer-PIN** aus
-der Mazda-App benötigt. Zwei Varianten:
+The **`lock.<car>_doors`** entity locks/unlocks the car remotely, just like the lock
+button in the app. It needs the **6-digit control PIN** from the Mazda app. Two modes:
 
-- **PIN nicht speichern (Standard):** Home Assistant fragt bei jedem Ver-/Entriegeln
-  nach der PIN.
-- **PIN speichern:** *Integration → Konfigurieren → „Steuer-PIN speichern“* und PIN
-  eingeben. Sie wird beim Speichern direkt bei Mazda geprüft. Danach funktionieren
-  auch Automationen (z. B. „Um 22 Uhr verriegeln, wenn offen“). Achtung: Wer
-  Zugriff auf Home Assistant hat, kann das Auto dann entriegeln.
+- **Don't store the PIN (default):** Home Assistant asks for the PIN on every
+  lock/unlock action.
+- **Store the PIN:** *Integration → Configure → "Store control PIN"* and enter the
+  PIN. It's verified against Mazda immediately when you save it. After that,
+  automations work too (e.g. "lock at 10pm if unlocked"). Caution: anyone with
+  access to Home Assistant can then unlock the car.
 
-Ablauf im Hintergrund (wie die App): Anzahl verbleibender PIN-Versuche abfragen →
-PIN gegen ein `rcToken` tauschen → verschlüsselte Einmal-Seriennummer holen und mit
-dem beim Login registrierten Schlüssel entschlüsseln → Befehl mit RSA-SHA256 signieren
-und an `control/doors` senden → `control/control-result` abfragen, bis das Auto
-bestätigt (max. 90 s).
+Behind the scenes (same as the app): check remaining PIN attempts → exchange the PIN
+for an `rcToken` → fetch an encrypted one-time serial number and decrypt it with the
+key registered at login → sign the command with RSA-SHA256 and send it to
+`control/doors` → poll `control/control-result` until the car confirms (max. 90 s).
 
-Sicherheitsnetz: Sind keine PIN-Versuche mehr übrig, wird die PIN gar nicht erst
-gesendet. Bei falscher PIN zeigt die Fehlermeldung die verbleibenden Versuche.
+Safety net: if no PIN attempts are left, the PIN is never sent at all. On a wrong PIN
+the error message shows the remaining attempts.
 
-Nach einem bestätigten Befehl zeigt die Entität den neuen Zustand sofort an, bis das
-Auto selbst einen neueren Status meldet (spätestens nach 10 Minuten).
+After a confirmed command the entity shows the new state immediately, until the car
+itself reports a newer status (after 10 minutes at the latest).
 
-> Das Auto braucht Mobilfunkempfang. In Tiefgaragen kann ein Befehl mit
-> „nicht rechtzeitig bestätigt“ fehlschlagen.
+> The car needs mobile network coverage. In underground garages a command can fail
+> with "not confirmed in time".
 
-## Klimasteuerung
+## Climate control
 
-Die Entität **„Klimatisierung“** (`climate.<auto>_klimatisierung`) startet und stoppt die
-Standklimatisierung wie der Lüfter-Knopf in der App – z. B. um das Auto im Winter
-vorzuheizen oder im Sommer vorzukühlen.
+The **"Climate control"** entity (`climate.<car>_climate`) starts and stops standalone
+climate control, just like the fan button in the app — e.g. to preheat the car in
+winter or precool it in summer.
 
-- Modi: *Aus* und *Heizen/Kühlen*, Zieltemperatur 16–30 °C in 0,5er-Schritten
-- Die Klimatisierung läuft jeweils **15 Minuten** (wie der Standard in der App)
-- Keine PIN nötig (die App fragt dafür auch keine ab)
-- Temperatur ändern, während die Klimatisierung aus ist, merkt sich nur den Wert und
-  startet nichts – erst „Einschalten“ startet mit dieser Temperatur
-- Aktuelle Temperatur = Innenraumtemperatur, die das Auto meldet
+- Modes: *Off* and *Heat/Cool*, target temperature 16–30 °C in 0.5° steps
+- Climate control always runs for **15 minutes** (the app's default)
+- No PIN needed (the app doesn't ask for one either)
+- Changing the temperature while it's off only stores the value and starts
+  nothing — only "turn on" starts it with that temperature
+- Current temperature = the interior temperature the car reports
 
-Beispiel-Automation: werktags um 7:15 Uhr auf 21 °C vorheizen
+Example automation: preheat to 21 °C at 7:15am on workdays
 
 ```yaml
 automation:
-  - alias: Mazda vorheizen
+  - alias: Preheat Mazda
     triggers:
       - trigger: time
         at: "07:15:00"
@@ -103,88 +102,88 @@ automation:
     actions:
       - action: climate.set_temperature
         target:
-          entity_id: climate.mazda_6e_klimatisierung
+          entity_id: climate.mazda_6e_climate
         data:
           temperature: 21
           hvac_mode: heat_cool
 ```
 
-## Weitere Fernsteuerung
+## More remote controls
 
-Alle Befehle werden wie beim Verriegeln signiert. Entitäten für Ausstattung, die das Auto
-laut seiner Funktionsliste (`function-config`) nicht hat, werden nicht angelegt.
+All commands are signed the same way as locking. Entities for equipment the car
+doesn't have (per its `function-config` feature list) are not created.
 
-| Entität | Was sie tut | PIN |
+| Entity | What it does | PIN |
 | --- | --- | --- |
-| Knopf **Status vom Auto anfordern** | weckt das Auto, damit es sofort frische Daten meldet (nach ~30 s wird neu abgefragt) | – |
-| Knopf **Lichthupe** / **Hupen und Blinken** | Auto auf dem Parkplatz finden | – |
-| Regler **Ladelimit einstellen** | 60–100 % | – |
-| Auswahl **Sitzheizung / Sitzlüftung Fahrer & Beifahrer** | Aus, Stufe 1–3 | – |
-| Schalter **Lenkradheizung**, **Frontscheibe enteisen** | an/aus | – |
-| Abdeckung **Fenster**, **Heckklappe** | öffnen/schließen | gespeicherte PIN nötig |
-| Schalter + Uhrzeit **Akku vorheizen (Plan im Auto)** | der Vorheizplan, den auch die App zeigt | – |
-| Schalter + Start/Ende **Ladezeitplan (Plan im Auto)** | der Ladeplan aus der App (nur wenn einer existiert) | – |
+| Button **Request status update** | wakes the car so it reports fresh data immediately (re-polled after ~30 s) | – |
+| Button **Flash lights** / **Flash and honk** | find the car in a parking lot | – |
+| Slider **Set charge limit** | 60–100 % | – |
+| Select **Seat heating / seat ventilation driver & passenger** | off, level 1–3 | – |
+| Switch **Steering wheel heating**, **Defrost windscreen** | on/off | – |
+| Cover **Windows**, **Tailgate** | open/close | stored PIN required |
+| Switch + time **Battery preheating (car plan)** | the preheat plan also shown in the app | – |
+| Switch + start/end **Charging schedule (car plan)** | the charging plan from the app (only if one exists) | – |
 
-Fenster und Heckklappe fragen in Home Assistant keine PIN ab (Abdeckungen können das
-nicht) – sie funktionieren nur mit gespeicherter Steuer-PIN, sonst kommt eine
-Fehlermeldung.
+Windows and the tailgate don't prompt for a PIN in Home Assistant (covers can't do
+that) — they only work with a stored control PIN, otherwise you get an error.
 
-Zusätzliche Sensoren: Luftfeuchte und Feinstaub im Innenraum, Lichter
-(Abblend-/Fernlicht, Standlicht, Blinker – standardmäßig deaktiviert).
+Additional sensors: interior humidity and PM2.5, lights (low/high beam, position
+lights, turn indicators — disabled by default).
 
-## Vorklimatisierung mit Wochenplan
+## Pre-conditioning with a weekly schedule
 
-Die Integration kann das Auto vor der Abfahrt vorheizen oder vorkühlen – nach einem
-**Wochenplan mit eigener Abfahrtszeit pro Tag** und/oder ausgelöst durch **beliebige
-Home-Assistant-Trigger**. Der Plan liegt in Home Assistant (nicht im Auto) und
-funktioniert auch, wenn die Cloud kurz nicht erreichbar ist.
+The integration can preheat or precool the car before departure — on a **weekly
+schedule with its own departure time per day** and/or triggered by **any Home
+Assistant trigger**. The schedule lives in Home Assistant (not in the car) and still
+works if the cloud is briefly unreachable.
 
-**Profil** (was beim Vorklimatisieren passiert, alles unter *Konfiguration* am Gerät):
+**Profile** (what happens during pre-conditioning, all under *Configure* on the device):
 
-- *Vorklimatisierung Temperatur* (16–30 °C)
-- *Vorklimatisierung Vorlaufzeit* (5–30 min) – so lange vor der Abfahrt wird gestartet,
-  die Klimatisierung läuft genau so lange
-- *Vorklimatisierung: Sitzheizung* (Fahrersitz, Aus/1–3)
-- *Vorklimatisierung: Lenkradheizung*, *…: Enteisen*
-- *Vorklimatisierung: Akku vorheizen* – setzt den Akku-Vorheizplan des Autos immer auf die
-  nächste geplante Abfahrt (der Akku braucht mehr Vorlauf, das regelt das Auto selbst)
+- *Pre-conditioning temperature* (16–30 °C)
+- *Pre-conditioning lead time* (5–30 min) — how long before departure it starts;
+  climate control runs for exactly that long
+- *Pre-conditioning: seat heating* (driver's seat, off/1–3)
+- *Pre-conditioning: steering wheel heating*, *…: defrost*
+- *Pre-conditioning: battery preheating* — always sets the car's own battery preheat
+  plan to the next scheduled departure (the battery needs more lead time, which the
+  car manages itself)
 
-**Wochenplan:** Schalter *Vorklimatisierung Wochenplan* (Hauptschalter), dazu pro
-Wochentag ein Schalter *Vorklimatisierung Montag…Sonntag* und eine Uhrzeit
-*Abfahrt Montag…Sonntag*. Standard: Mo–Fr 07:30, Wochenende aus.
+**Weekly schedule:** switch *Pre-conditioning weekly plan* (main switch), plus one
+switch *Pre-conditioning Monday…Sunday* and one time *Departure Monday…Sunday* per
+weekday. Default: Mon–Fri 07:30, weekend off.
 
-**Anzeige:** *Nächste Abfahrt* und *Nächster Vorklimatisierungsstart* (Zeitstempel; die
-Attribute zeigen außerdem den letzten Lauf und fehlgeschlagene Schritte).
+**Display:** *Next departure* and *Next pre-conditioning start* (timestamps; the
+attributes also show the last run and any failed steps).
 
-**Knöpfe:** *Vorklimatisierung starten* / *stoppen* (sofort, mit dem Profil) und
-*Nächste Abfahrt überspringen* (z. B. Feiertag, Homeoffice).
+**Buttons:** *Start pre-conditioning* / *stop* (immediately, with the profile) and
+*Skip next departure* (e.g. public holiday, working from home).
 
-### Externe Trigger (Automationen)
+### External triggers (automations)
 
-| Service | Zweck |
+| Service | Purpose |
 | --- | --- |
-| `mazda6e.start_preconditioning` | jetzt vorklimatisieren; optional `temperature`, `duration`, `seat_heat` (0–3), `steering_wheel`, `defrost`, `battery` – leere Felder nehmen das Profil |
-| `mazda6e.stop_preconditioning` | Klima, Sitz-/Lenkradheizung und Enteisen aus |
-| `mazda6e.skip_next_departure` | nächste Abfahrt des Wochenplans auslassen |
+| `mazda6e.start_preconditioning` | pre-condition now; optional `temperature`, `duration`, `seat_heat` (0–3), `steering_wheel`, `defrost`, `battery` — empty fields use the profile |
+| `mazda6e.stop_preconditioning` | turns off climate, seat/steering wheel heating, and defrost |
+| `mazda6e.skip_next_departure` | skip the weekly schedule's next departure |
 
-`device_id` ist nur bei mehreren Autos nötig. `start_preconditioning` liefert als Antwort
-die fehlgeschlagenen Schritte (`failed`). Jeder Lauf löst das Event
-`mazda6e_preconditioning` aus (`action`: `started`/`stopped`, `source`:
-`schedule`/`service`/`button`, `departure`, `failed`).
+`device_id` is only needed with multiple cars. `start_preconditioning` returns the
+failed steps (`failed`) in its response. Every run fires the `mazda6e_preconditioning`
+event (`action`: `started`/`stopped`, `source`: `schedule`/`service`/`button`,
+`departure`, `failed`).
 
-Beispiel: nach dem Kalender vorheizen, nur wenn es kalt ist
+Example: preheat based on your calendar, only when it's cold
 
 ```yaml
 automation:
-  - alias: Mazda vorheizen vor Terminen
+  - alias: Preheat Mazda before appointments
     triggers:
       - trigger: calendar
         event: start
-        entity_id: calendar.arbeit
+        entity_id: calendar.work
         offset: "-0:20:00"
     conditions:
       - condition: numeric_state
-        entity_id: sensor.aussentemperatur
+        entity_id: sensor.outdoor_temperature
         below: 5
     actions:
       - action: mazda6e.start_preconditioning
@@ -196,121 +195,120 @@ automation:
           defrost: true
 ```
 
-Beispiel: Wochenplan an Feiertagen und im Urlaub aussetzen
+Example: suspend the weekly schedule on public holidays and while on vacation
 
 ```yaml
 automation:
-  - alias: Mazda Abfahrt an Feiertagen überspringen
+  - alias: Skip Mazda departure on public holidays
     triggers:
       - trigger: time
         at: "20:00:00"
     conditions:
       - condition: state
-        entity_id: binary_sensor.feiertag_morgen
+        entity_id: binary_sensor.public_holiday_tomorrow
         state: "on"
     actions:
       - action: mazda6e.skip_next_departure
 ```
 
-Beispiel: Benachrichtigung, wenn ein Schritt fehlschlägt
+Example: notify when a step fails
 
 ```yaml
 automation:
-  - alias: Mazda Vorklimatisierung fehlgeschlagen
+  - alias: Mazda pre-conditioning failed
     triggers:
       - trigger: event
         event_type: mazda6e_preconditioning
     conditions:
       - "{{ trigger.event.data.failed | length > 0 }}"
     actions:
-      - action: notify.mobile_app_handy
+      - action: notify.mobile_app_phone
         data:
-          message: "Vorklimatisierung: fehlgeschlagen {{ trigger.event.data.failed | join(', ') }}"
+          message: "Pre-conditioning failed: {{ trigger.event.data.failed | join(', ') }}"
 ```
 
-### Protokoll-Unsicherheiten
+### Protocol uncertainties
 
-Die beiden Referenzprojekte unterscheiden sich an einigen Stellen; umgesetzt ist jeweils:
+The two reference projects disagree on a few details; this is what's implemented:
 
-- Hupen/Blinken: `type` 1 = nur Licht, 3 = Licht + Hupe (laut Sunek0; fano nutzt 1 für
-  „Auto finden“) – daher zwei Knöpfe
-- Fenster: mit `openType: 10` (Sunek0)
-- Signatur: ohne leeres `rcToken` bei Befehlen ohne PIN
+- Honk/flash: `type` 1 = light only, 3 = light + horn (per Sunek0; fano uses 1 for
+  "find my car") — hence two separate buttons
+- Windows: with `openType: 10` (Sunek0)
+- Signature: no empty `rcToken` for commands that don't need a PIN
 
-Falls etwas davon am echten Auto nicht klappt, bitte mit Debug-Log melden.
+If any of this doesn't work on your actual car, please report it with a debug log.
 
 ## Installation
 
-### HACS (benutzerdefiniertes Repository)
+### HACS (custom repository)
 
-1. HACS → Integrationen → ⋮ → *Benutzerdefinierte Repositories* →
-   `https://github.com/ghostsailorgit/mazda6e_homeassistant`, Kategorie *Integration*.
-2. „Mazda 6e“ installieren, Home Assistant neu starten.
+1. HACS → Integrations → ⋮ → *Custom repositories* →
+   `https://github.com/ghostsailorgit/mazda6e_homeassistant`, category *Integration*.
+2. Install "Mazda 6e", restart Home Assistant.
 
-### Manuell
+### Manual
 
-Ordner `custom_components/mazda6e` nach `<config>/custom_components/` kopieren und
-Home Assistant neu starten.
+Copy the `custom_components/mazda6e` folder into `<config>/custom_components/` and
+restart Home Assistant.
 
-## Einrichtung
+## Setup
 
-*Einstellungen → Geräte & Dienste → Integration hinzufügen → Mazda 6e*
+*Settings → Devices & Services → Add Integration → Mazda 6e*
 
-1. E-Mail, Passwort und Region eingeben (dieselben Daten wie in der App).
-2. Mazda schickt einen **Bestätigungscode per E-Mail** – diesen eingeben.
+1. Enter email, password, and region (the same credentials as the app).
+2. Mazda sends a **confirmation code by email** — enter it.
 
-Das Passwort wird nicht gespeichert, nur die Tokens und der Steuerschlüssel. Unter *Konfigurieren* lässt sich
-das Abfrageintervall (Standard: 5 Minuten) einstellen.
+The password is not stored, only the tokens and the control key. Under *Configure*
+you can set the polling interval (default: 5 minutes).
 
-> Mazda erlaubt pro Konto nur eine aktive Anmeldung: Meldet sich Home Assistant an,
-> wird die App auf dem Handy abgemeldet (und umgekehrt). Abhilfe schafft ein
-> **Zweitkonto nur für Home Assistant**:
+> Mazda only allows one active login per account: if Home Assistant logs in, the
+> phone app gets logged out (and vice versa). The fix is a **second account just for
+> Home Assistant**:
 >
-> 1. In der App ein neues Konto mit einer anderen E-Mail-Adresse anlegen.
-> 2. Mit dem Hauptkonto das Fahrzeug öffnen, auf *Teilen* tippen und das neue
->    Konto einladen.
-> 3. Mit dem neuen Konto in der App anmelden und die Fahrzeugfreigabe annehmen.
-> 4. Im neuen Konto eine eigene Steuer-PIN anlegen (z. B. beim Versuch, ein
->    Fenster zu öffnen – die App fragt dann danach). Die PIN gehört zum Konto,
->    das Hauptkonto-PIN gilt nicht für das Zweitkonto.
-> 5. In der App wieder zum Hauptkonto wechseln. Ab jetzt nutzt nur noch Home
->    Assistant das Zweitkonto.
+> 1. Create a new account in the app with a different email address.
+> 2. With your main account, open the vehicle in the app, tap *Share*, and invite
+>    the new account.
+> 3. Log in to the app with the new account and accept the vehicle share.
+> 4. Set up a separate control PIN on the new account (e.g. by trying to open a
+>    window — the app will then ask for one). The PIN belongs to the account; your
+>    main account's PIN doesn't apply to the second account.
+> 5. Switch the app back to your main account. From now on, only Home Assistant
+>    uses the second account.
 
-## Account ohne Home Assistant testen
+## Testing an account without Home Assistant
 
 ```bash
 pip install aiohttp cryptography
-python scripts/mazda6e_cli.py --email du@example.com --raw
+python scripts/mazda6e_cli.py --email you@example.com --raw
 ```
 
-Das Skript loggt sich ein, fragt ggf. nach dem E-Mail-Code und gibt den Fahrzeugstatus
-aus – ideal, um zu prüfen, ob alle Werte passen. Mit `--lock` bzw. `--unlock` lässt sich
-die Fernverriegelung testen (fragt nach der Steuer-PIN), mit `--climate-on 21` bzw.
-`--climate-off` die Klimasteuerung.
+The script logs in, asks for the email code if needed, and prints the vehicle
+status — handy for checking that all the values look right. Use `--lock` / `--unlock`
+to test remote locking (asks for the control PIN), and `--climate-on 21` /
+`--climate-off` for climate control.
 
-## Fehlersuche
+## Troubleshooting
 
-- Debug-Log aktivieren:
+- Enable debug logging:
   ```yaml
   logger:
     logs:
       custom_components.mazda6e: debug
   ```
-- *Diagnose herunterladen* auf der Integrationsseite liefert die Rohdaten des
-  Fahrzeugs (VIN und Tokens werden geschwärzt). Damit lassen sich unbekannte
-  Felder zuordnen.
+- *Download diagnostics* on the integration page gives you the vehicle's raw data
+  (VIN and tokens are redacted). Handy for mapping unknown fields.
 
-## Entwicklung
+## Development
 
 ```bash
-# API-Client und Datenaufbereitung (ohne Home Assistant)
+# API client and data parsing (no Home Assistant)
 pip install aiohttp cryptography pytest
 pytest tests --ignore tests/ha
 
-# Home-Assistant-Teil (Config-Flow, Entitäten) – separate venv, Python 3.13
+# Home Assistant part (config flow, entities) – separate venv, Python 3.13
 pip install -r requirements_test.txt
 pytest tests/ha
 ```
 
-Die beiden Suites laufen getrennt, weil das HA-Test-Plugin Netzwerk-Sockets global
-sperrt, die der Fake-Server der API-Tests braucht.
+The two suites run separately because the HA test plugin globally blocks network
+sockets that the API tests' fake server needs.
