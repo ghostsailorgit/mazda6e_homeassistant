@@ -149,8 +149,6 @@ class VehicleStatus:
     power_state: str | None = None
     speed_kmh: float | None = None
     online: bool | None = None
-    latitude: float | None = None
-    longitude: float | None = None
     tire_pressure_bar: dict[str, float | None] = field(default_factory=dict)
     last_update: datetime | None = None
 
@@ -194,7 +192,6 @@ class VehicleStatus:
         window = raw.get("window") or {}
         hvac = raw.get("hvac") or {}
         tire = raw.get("tire") or {}
-        location = raw.get("location") or {}
         seat = raw.get("seat") or {}
         lamp = raw.get("lamp") or {}
         plans = charge.get("chargePlanList")
@@ -297,17 +294,7 @@ class VehicleStatus:
             power_state=POWER_STATE.get(_int(status.get("powerStatus"))),
             speed_kmh=speed,
             online=_flag(status.get("connectStatus")),
-            latitude=_first_num(location, "latitude", "lat", "gpsLatitude"),
-            longitude=_first_num(location, "longitude", "lng", "lon", "gpsLongitude"),
             tire_pressure_bar=tire_pressure,
             last_update=last_update,
             raw=raw,
         )
-
-
-def _first_num(data: dict[str, Any], *keys: str) -> float | None:
-    for key in keys:
-        value = _num(data.get(key))
-        if value is not None:
-            return value
-    return None

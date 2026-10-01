@@ -75,13 +75,13 @@
         "name": "Kilometerstand"
       },
       "charge_current": {
-        "name": "Ladestrom"
+        "name": "Ladestrom (Summe Phasen)"
       },
       "ac_charge_current": {
         "name": "AC-Ladestrom"
       },
       "dc_charge_current": {
-        "name": "DC-Ladestrom"
+        "name": "Akkustrom"
       },
       "remaining_charge_time": {
         "name": "Restladezeit"
@@ -206,11 +206,6 @@
       },
       "lamp_right_turn": {
         "name": "Blinker rechts"
-      }
-    },
-    "device_tracker": {
-      "location": {
-        "name": "Standort"
       }
     },
     "lock": {

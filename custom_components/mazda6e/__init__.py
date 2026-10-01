@@ -32,7 +32,6 @@ PLATFORMS = [
     Platform.BUTTON,
     Platform.CLIMATE,
     Platform.COVER,
-    Platform.DEVICE_TRACKER,
     Platform.LOCK,
     Platform.NUMBER,
     Platform.SELECT,

@@ -306,7 +306,7 @@ class Mazda6eClient:
                     "tire": "1",
                     "lamp": "1",
                     "seat": "1",
-                    "location": "1",
+                    "location": "0",
                     "fuel": "0",
                     "departurePlan": "0",
                     "airConditionPlan": "0",

@@ -37,9 +37,13 @@ und [Sunek0/ha-mazda-6e-cx6](https://github.com/Sunek0/ha-mazda-6e-cx6) (MIT).
 | Bereich | Entitäten |
 | --- | --- |
 | Akku | Akkustand (%), Reichweite, Ladelimit |
-| Laden | Ladestrom (A), AC/DC-Ladestrom (standardmäßig deaktiviert), Ladestatus, Restladezeit, Ladekabel eingesteckt, Lädt |
+| Laden | Ladestrom (Summe Phasen), AC-Ladestrom/Akkustrom (standardmäßig deaktiviert), Ladestatus, Restladezeit, Ladekabel eingesteckt, Lädt |
 | Offen/Zu | Verriegelung, Türen (gesamt + einzeln), Kofferraum, Motorhaube, Fenster (gesamt + einzeln) |
-| Sonstiges | Kilometerstand, Innentemperatur, Klimaanlage an, Fahrzeugzustand (fährt/geparkt), Reifendruck, Standort, Online-Status, Zeitpunkt der letzten Meldung |
+| Sonstiges | Kilometerstand, Innentemperatur, Klimaanlage an, Fahrzeugzustand (fährt/geparkt), Reifendruck, Online-Status, Zeitpunkt der letzten Meldung |
+
+> Standort wird nicht angezeigt: Das Auto meldet in der Cloud-API keine Koordinaten
+> (auch die offizielle App zeigt keinen Standort an), daher gibt es keine
+> Standort-Entität.
 
 Hinweis zur Verriegelung: Die Entität hat die Geräteklasse *Schloss*, d. h. **„Ein“ =
 entriegelt**, „Aus“ = verriegelt.
@@ -261,9 +265,19 @@ Home Assistant neu starten.
 Das Passwort wird nicht gespeichert, nur die Tokens und der Steuerschlüssel. Unter *Konfigurieren* lässt sich
 das Abfrageintervall (Standard: 5 Minuten) einstellen.
 
-> Ob eine zusätzliche Anmeldung die App auf dem Handy abmeldet, ist nicht
-> abschließend geklärt. Falls ja, hilft ein eigenes Zweitkonto, dem das Fahrzeug in
-> der App freigegeben wird.
+> Mazda erlaubt pro Konto nur eine aktive Anmeldung: Meldet sich Home Assistant an,
+> wird die App auf dem Handy abgemeldet (und umgekehrt). Abhilfe schafft ein
+> **Zweitkonto nur für Home Assistant**:
+>
+> 1. In der App ein neues Konto mit einer anderen E-Mail-Adresse anlegen.
+> 2. Mit dem Hauptkonto das Fahrzeug öffnen, auf *Teilen* tippen und das neue
+>    Konto einladen.
+> 3. Mit dem neuen Konto in der App anmelden und die Fahrzeugfreigabe annehmen.
+> 4. Im neuen Konto eine eigene Steuer-PIN anlegen (z. B. beim Versuch, ein
+>    Fenster zu öffnen – die App fragt dann danach). Die PIN gehört zum Konto,
+>    das Hauptkonto-PIN gilt nicht für das Zweitkonto.
+> 5. In der App wieder zum Hauptkonto wechseln. Ab jetzt nutzt nur noch Home
+>    Assistant das Zweitkonto.
 
 ## Account ohne Home Assistant testen
 
@@ -286,8 +300,8 @@ die Fernverriegelung testen (fragt nach der Steuer-PIN), mit `--climate-on 21` b
       custom_components.mazda6e: debug
   ```
 - *Diagnose herunterladen* auf der Integrationsseite liefert die Rohdaten des
-  Fahrzeugs (VIN, Standort und Tokens werden geschwärzt). Damit lassen sich
-  unbekannte Felder zuordnen.
+  Fahrzeugs (VIN und Tokens werden geschwärzt). Damit lassen sich unbekannte
+  Felder zuordnen.
 
 ## Entwicklung
 
