@@ -158,10 +158,10 @@ async def test_battery_plan_follows_next_departure(hass: HomeAssistant, client, 
 
 
 async def test_service_start_with_overrides(hass: HomeAssistant, client) -> None:
-    await _setup(hass)
+    entry = await _setup(hass)
     client["set_defrost"].side_effect = MazdaCommandError("no")
     events = async_capture_events(hass, EVENT_PRECONDITIONING)
-    device = dr.async_get(hass).async_get_device_by_identifier((DOMAIN, "VIN0001"))
+    device = dr.async_get(hass).async_get_device_by_identifier(entry.entry_id, (DOMAIN, "VIN0001"))
 
     response = await hass.services.async_call(
         DOMAIN,

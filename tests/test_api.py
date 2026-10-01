@@ -327,10 +327,18 @@ def test_missing_pin(control):
     assert backend.calls == []
 
 
-def test_serial_for_other_key_needs_relogin(control):
+def test_serial_for_other_key_needs_relogin(control, monkeypatch):
     public, _private = control
     _other_public, other_private = generate_key_pair()
     backend = FakeControlBackend(public, [])
+
+    # Real RSA decryption with a mismatched key almost always raises ValueError,
+    # but not guaranteed to (~1 in 65000 chance of accidentally valid padding) -
+    # force it so the test is deterministic instead of occasionally flaky.
+    def _decrypt_serial_fails(_serial: str, _private_key: str) -> str:
+        raise ValueError("Decryption failed")
+
+    monkeypatch.setattr(api_mod, "decrypt_serial", _decrypt_serial_fails)
 
     async def run(client):
         with pytest.raises(api_mod.MazdaAuthError):
