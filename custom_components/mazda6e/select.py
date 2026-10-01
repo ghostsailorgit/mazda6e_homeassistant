@@ -11,6 +11,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .coordinator import Mazda6eConfigEntry
 from .entity import Mazda6eControlEntity, Mazda6ePlanEntity, has_control, plan_entities
+from .precondition import NO_WEATHER_ENTITY
 
 LEVELS = ["off", "1", "2", "3"]
 
@@ -84,6 +85,13 @@ PLAN_SEAT_HEAT = SelectEntityDescription(
     entity_category=EntityCategory.CONFIG,
 )
 
+PLAN_WEATHER_ENTITY = SelectEntityDescription(
+    key="precondition_weather_entity",
+    translation_key="precondition_weather_entity",
+    icon="mdi:weather-partly-cloudy",
+    entity_category=EntityCategory.CONFIG,
+)
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -107,6 +115,12 @@ async def async_setup_entry(
                 if coordinator.data[vid].supports("#driverSeatHeat")
                 else []
             ),
+        )
+    )
+    async_add_entities(
+        plan_entities(
+            entry,
+            lambda vid, p: [Mazda6ePlanWeatherEntity(coordinator, vid, PLAN_WEATHER_ENTITY, p)],
         )
     )
 
@@ -134,3 +148,19 @@ class Mazda6ePlanSeatHeat(Mazda6ePlanEntity, SelectEntity):
 
     async def async_select_option(self, option: str) -> None:
         await self.preconditioner.async_update(seat_heat=_level(option))
+
+
+class Mazda6ePlanWeatherEntity(Mazda6ePlanEntity, SelectEntity):
+    """Weather entity that gates the weekly schedule by forecast temperature."""
+
+    @property
+    def options(self) -> list[str]:
+        return [NO_WEATHER_ENTITY, *sorted(self.hass.states.async_entity_ids("weather"))]
+
+    @property
+    def current_option(self) -> str | None:
+        return self.preconditioner.settings.get("weather_entity") or NO_WEATHER_ENTITY
+
+    async def async_select_option(self, option: str) -> None:
+        value = None if option == NO_WEATHER_ENTITY else option
+        await self.preconditioner.async_update(weather_entity=value)

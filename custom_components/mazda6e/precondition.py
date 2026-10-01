@@ -50,7 +50,11 @@ DEFAULTS: dict[str, Any] = {
     "defrost": False,
     "battery": False,
     "skip": None,  # ISO departure the user chose to skip
+    "weather_entity": None,  # weather.* entity used to gate the schedule; None = always run
+    "cold_below": 10.0,  # only auto-run if the forecast at departure is below this (°C)
 }
+
+NO_WEATHER_ENTITY = "none"
 
 
 def parse_time(value: str) -> time:
@@ -161,9 +165,54 @@ class Preconditioner:
     async def _async_timer(self, _now: datetime) -> None:
         self._unsub_timer = None
         departure = self._scheduled_departure
+        if departure is not None and not await self._should_preheat(departure):
+            self._record("skipped", "schedule", departure, [])
+            self._schedule()
+            return
         # Battery preheating was already handed to the car when planning.
         await self.async_start(source="schedule", departure=departure, battery=False)
         self._schedule()
+
+    async def _should_preheat(self, departure: datetime) -> bool:
+        """Whether the weather gate allows the scheduled run to go ahead.
+
+        No weather entity configured -> always run (old behaviour). A forecast
+        that could not be read (service error, no data for that time) also
+        lets the run go ahead, so a temporary weather-integration hiccup never
+        silently skips pre-conditioning.
+        """
+        entity_id = self.settings.get("weather_entity")
+        threshold = self.settings.get("cold_below")
+        if not entity_id or threshold is None:
+            return True
+        temperature = await self._async_forecast_temperature(entity_id, departure)
+        if temperature is None:
+            return True
+        return temperature < threshold
+
+    async def _async_forecast_temperature(self, entity_id: str, when: datetime) -> float | None:
+        """Forecast temperature closest to ``when`` from an hourly forecast."""
+        try:
+            response = await self.hass.services.async_call(
+                "weather",
+                "get_forecasts",
+                {"type": "hourly"},
+                target={"entity_id": entity_id},
+                blocking=True,
+                return_response=True,
+            )
+        except Exception:  # noqa: BLE001 - a weather hiccup must not break the schedule loop
+            _LOGGER.warning("Could not fetch forecast from %s", entity_id, exc_info=True)
+            return None
+        forecast = ((response or {}).get(entity_id) or {}).get("forecast") or []
+        if not forecast:
+            return None
+        closest = min(
+            forecast,
+            key=lambda f: abs((dt_util.parse_datetime(f["datetime"]) - when).total_seconds()),
+        )
+        temperature = closest.get("temperature")
+        return float(temperature) if temperature is not None else None
 
     @callback
     def _sync_battery_plan(self, departure: datetime | None) -> None:
