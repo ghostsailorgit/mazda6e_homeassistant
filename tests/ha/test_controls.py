@@ -6,9 +6,11 @@ import pytest
 from homeassistant.const import CONF_EMAIL
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from homeassistant.util import dt as dt_util
+from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
 
 from custom_components.mazda6e.api import FLASH_AND_HONK, FLASH_ONLY, MazdaPinError
+from custom_components.mazda6e.button import STATUS_UPLOAD_DELAY
 from custom_components.mazda6e.const import (
     CONF_CONTROL_PRIVATE_KEY,
     CONF_DEVICE_ID,
@@ -99,6 +101,8 @@ async def test_buttons(hass: HomeAssistant, client) -> None:
     await _setup(hass)
     await _call(hass, "button", "press", "button.mazda_6e_request_status_update")
     client["request_status_update"].assert_awaited_once_with("42")
+    async_fire_time_changed(hass, dt_util.utcnow() + STATUS_UPLOAD_DELAY)
+    await hass.async_block_till_done()
     await _call(hass, "button", "press", "button.mazda_6e_flash_lights")
     await _call(hass, "button", "press", "button.mazda_6e_flash_and_honk")
     assert [c.args for c in client["flash_and_honk"].await_args_list] == [("42", FLASH_ONLY), ("42", FLASH_AND_HONK)]

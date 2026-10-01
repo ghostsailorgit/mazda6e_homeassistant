@@ -30,7 +30,6 @@ SAMPLE = {
     "window": {"windows": [0, 0, 0, 1], "openDegree": [0, 0, 0, 30]},
     "hvac": {"insideTemp": 215, "remoteTemp": 0, "acStatus": 0},
     "tire": {"leftFront": {"pressure": 250}},
-    "location": {"latitude": "49.01", "longitude": "8.40"},
     "lastUpdatedAt": 1759200000000,
 }
 
@@ -62,7 +61,6 @@ def test_parse_full_status():
     assert s.online is True
     assert s.tire_pressure_bar["front_left"] == 2.5
     assert s.tire_pressure_bar["rear_right"] is None
-    assert (s.latitude, s.longitude) == (49.01, 8.40)
     assert s.last_update.year == 2025
 
 

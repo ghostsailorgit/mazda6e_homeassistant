@@ -75,13 +75,13 @@
         "name": "Odometer"
       },
       "charge_current": {
-        "name": "Charging current"
+        "name": "Charging current (sum of phases)"
       },
       "ac_charge_current": {
         "name": "AC charging current"
       },
       "dc_charge_current": {
-        "name": "DC charging current"
+        "name": "Battery current"
       },
       "remaining_charge_time": {
         "name": "Remaining charging time"
@@ -206,11 +206,6 @@
       },
       "lamp_right_turn": {
         "name": "Right indicator"
-      }
-    },
-    "device_tracker": {
-      "location": {
-        "name": "Location"
       }
     },
     "lock": {

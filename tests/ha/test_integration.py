@@ -26,7 +26,6 @@ STATUS = VehicleStatus.from_api(
         "charge": {"chargeStatus": 6, "chargeConStatus": 1, "chargeCurrent": 16},
         "door": {"doors": [0, 0, 0, 0], "trunk": 1, "driverLock": 0, "passengerLock": 0},
         "window": {"windows": [0, 0, 0, 0]},
-        "location": {"latitude": 49.0, "longitude": 8.4},
     }
 )
 VEHICLE = Vehicle(vehicle_id="42", vin="VIN0001", model_name="MAZDA 6e")
@@ -100,15 +99,13 @@ async def test_setup_creates_entities(hass: HomeAssistant) -> None:
         await hass.async_block_till_done()
 
     assert hass.states.get("sensor.mazda_6e_battery_level").state == "81"
-    assert hass.states.get("sensor.mazda_6e_charging_current").state == "16.0"
+    assert hass.states.get("sensor.mazda_6e_charging_current_sum_of_phases").state == "16.0"
     assert hass.states.get("sensor.mazda_6e_charging_status").state == "charging"
     assert hass.states.get("binary_sensor.mazda_6e_lock").state == "off"  # locked
     assert hass.states.get("binary_sensor.mazda_6e_trunk").state == "on"
     assert hass.states.get("binary_sensor.mazda_6e_doors").state == "on"
     assert hass.states.get("binary_sensor.mazda_6e_windows").state == "off"
     assert hass.states.get("binary_sensor.mazda_6e_charging").state == "on"
-    tracker = hass.states.get("device_tracker.mazda_6e_location")
-    assert tracker.attributes["latitude"] == 49.0
 
 
 async def test_expired_login_starts_reauth(hass: HomeAssistant) -> None:
