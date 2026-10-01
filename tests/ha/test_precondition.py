@@ -161,7 +161,7 @@ async def test_service_start_with_overrides(hass: HomeAssistant, client) -> None
     entry = await _setup(hass)
     client["set_defrost"].side_effect = MazdaCommandError("no")
     events = async_capture_events(hass, EVENT_PRECONDITIONING)
-    device = dr.async_get(hass).async_get_device_by_identifier((DOMAIN, "VIN0001"), entry.entry_id)
+    device = dr.async_entries_for_config_entry(dr.async_get(hass), entry.entry_id)[0]
 
     response = await hass.services.async_call(
         DOMAIN,
