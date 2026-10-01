@@ -243,9 +243,6 @@ Falls etwas davon am echten Auto nicht klappt, bitte mit Debug-Log melden.
 
 ### HACS (benutzerdefiniertes Repository)
 
-> HACS kann nur öffentliche GitHub-Repositories installieren. Solange dieses
-> Repository privat ist, bitte die manuelle Installation verwenden.
-
 1. HACS → Integrationen → ⋮ → *Benutzerdefinierte Repositories* →
    `https://github.com/ghostsailorgit/mazda6e_homeassistant`, Kategorie *Integration*.
 2. „Mazda 6e“ installieren, Home Assistant neu starten.
