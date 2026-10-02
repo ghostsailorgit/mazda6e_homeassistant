@@ -304,7 +304,8 @@ class Preconditioner:
         """Fetch the forecast temperature for the next departure in the background."""
         departure = self._scheduled[0] if self._scheduled else None
         entity_id = self.settings.get("weather_entity")
-        if departure is None or not entity_id:
+        if departure is None or not entity_id or self.hass.states.get(entity_id) is None:
+            # No weather entity (yet): _track_weather fetches once it appears.
             self._set_departure_forecast(None, None)
             return
 
