@@ -430,7 +430,7 @@ def test_commands_without_pin(control, call, path, params, serial_type):
 @pytest.mark.parametrize(
     ("call", "path", "params"),
     [
-        (lambda c: c.set_windows("42", True), "control/windows", {"command": "window", "open": True, "openType": 10}),
+        (lambda c: c.set_windows("42", True), "control/windows", {"command": "window", "open": True}),
         (lambda c: c.set_trunk("42", False), "control/trunk", {"command": "trunk", "open": False}),
     ],
 )

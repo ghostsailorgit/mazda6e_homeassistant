@@ -352,7 +352,8 @@ Die beiden Referenzprojekte unterscheiden sich an einigen Stellen; umgesetzt ist
 
 - Hupen/Blinken: `type` 1 = nur Licht, 3 = Licht + Hupe (laut Sunek0; fano nutzt 1 für
   „Auto finden“) – daher zwei Knöpfe
-- Fenster: mit `openType: 10` (Sunek0)
+- Fenster: ohne `openType` (fano). Mit `openType: 10` (Sunek0) lehnt ein Mazda 6e in
+  Europa den Befehl mit „The Controller Is Not Responding“ ab
 - Signatur: ohne leeres `rcToken` bei Befehlen ohne PIN
 
 Falls etwas davon am echten Auto nicht klappt, bitte mit Debug-Log melden.

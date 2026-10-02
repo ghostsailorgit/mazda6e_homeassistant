@@ -345,7 +345,8 @@ The two reference projects disagree on a few details; this is what's implemented
 
 - Honk/flash: `type` 1 = light only, 3 = light + horn (per Sunek0; fano uses 1 for
   "find my car") — hence two separate buttons
-- Windows: with `openType: 10` (Sunek0)
+- Windows: without `openType` (fano). With `openType: 10` (Sunek0) a Mazda 6e in
+  Europe rejects the command with "The Controller Is Not Responding"
 - Signature: no empty `rcToken` for commands that don't need a PIN
 
 If any of this doesn't work on your actual car, please report it with a debug log.
