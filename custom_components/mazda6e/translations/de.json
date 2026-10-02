@@ -515,7 +515,7 @@
     },
     "send_raw_command": {
       "name": "Rohbefehl senden (Diagnose)",
-      "description": "Um herauszufinden, wie die App das Auto steuert: sendet einen signierten Fernbefehl an cma-app-car-control/api/control/<control> und liefert die Antwort des Autos. Das Auto führt ihn wirklich aus. Nur für Admins.",
+      "description": "Um herauszufinden, wie die App das Auto steuert: sendet einen signierten Fernbefehl an den unter Steuer-Endpunkt angegebenen Fernsteuer-Endpunkt und liefert die Antwort des Autos. Das Auto führt ihn wirklich aus. Nur für Admins.",
       "fields": {
         "device_id": {
           "name": "Auto",
