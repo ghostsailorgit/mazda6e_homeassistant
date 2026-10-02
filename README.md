@@ -1,5 +1,7 @@
 🇩🇪 **Deutsche Version:** [README.de.md](README.de.md)
 
+<p align="center"><img src="https://raw.githubusercontent.com/ghostsailorgit/mazda6e_homeassistant/main/custom_components/mazda6e/brand/icon@2x.png" alt="Mazda 6e for Home Assistant" width="200"></p>
+
 # Mazda 6e for Home Assistant
 
 Custom integration that pulls data for a **Mazda 6e** (and CX-6e) from the cloud
