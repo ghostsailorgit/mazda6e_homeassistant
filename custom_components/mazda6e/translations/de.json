@@ -186,6 +186,9 @@
       },
       "precondition_next_start": {
         "name": "Nächster Vorklimatisierungsstart"
+      },
+      "precondition_departure_temperature": {
+        "name": "Temperatur bei Abfahrt"
       }
     },
     "binary_sensor": {

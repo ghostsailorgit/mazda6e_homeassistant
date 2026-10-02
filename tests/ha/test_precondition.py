@@ -1,6 +1,6 @@
 """Departure plans, pre-conditioning services and events."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, call, patch
 
 import pytest
@@ -10,7 +10,7 @@ from homeassistant.config_entries import (
     ConfigSubentryDataWithId,
 )
 from homeassistant.const import CONF_EMAIL
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
@@ -359,6 +359,38 @@ async def test_schedule_runs_when_forecast_is_cold(hass: HomeAssistant, client, 
         await hass.async_block_till_done()
 
     client["set_climate"].assert_awaited_once_with("42", True, 21.0, run_time=15)
+
+
+async def test_forecast_at_next_departure(hass: HomeAssistant, client, freezer) -> None:
+    freezer.move_to(_local(2026, 10, 5, 6, 0))  # Monday 06:00
+    await _setup(hass, _plan("work", "Work", "07:30", WEEKDAYS_MON_FRI))
+    sensor = "sensor.mazda_6e_forecast_at_departure"
+    hours = [_local(2026, 10, 5, 6, 0) + timedelta(hours=h) for h in range(24)]
+    forecast = [{"datetime": t.isoformat(), "temperature": 4.0 + i} for i, t in enumerate(hours)]
+
+    async def get_forecasts(call: ServiceCall):
+        return {"weather.test": {"forecast": forecast}}
+
+    hass.services.async_register("weather", "get_forecasts", get_forecasts, supports_response=SupportsResponse.ONLY)
+    hass.states.async_set("weather.test", "cloudy")
+    await _call(hass, "switch", "turn_on", MASTER)
+    assert hass.states.get(sensor).state == "unknown"  # no weather source chosen
+
+    await _call(hass, "select", "select_option", "select.mazda_6e_pre_conditioning_weather_source", option="weather.test")
+    assert float(hass.states.get(sensor).state) == 5.0  # forecast hour 07:00, closest to 07:30
+
+    # Tuesday 07:30 lies beyond the forecast: unknown rather than a far-off hour
+    await _call(hass, "button", "press", "button.mazda_6e_skip_next_departure")
+    assert hass.states.get(sensor).state == "unknown"
+
+    # a newer forecast is fetched periodically
+    forecast.extend(
+        {"datetime": (hours[-1] + timedelta(hours=h)).isoformat(), "temperature": -3.0} for h in range(1, 30)
+    )
+    freezer.tick(timedelta(minutes=31))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert float(hass.states.get(sensor).state) == -3.0
 
 
 async def test_plan_button_reports_failed_steps(hass: HomeAssistant, client) -> None:

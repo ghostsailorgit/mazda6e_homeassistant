@@ -213,14 +213,23 @@ PLAN_SENSORS = (
         icon="mdi:timer-play-outline",
         device_class=SensorDeviceClass.TIMESTAMP,
     ),
+    SensorEntityDescription(
+        key="precondition_departure_temperature",
+        translation_key="precondition_departure_temperature",
+        icon="mdi:thermometer-auto",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+    ),
 )
 
 
 class Mazda6ePlanSensor(Mazda6ePlanEntity, SensorEntity):
-    """Next planned departure / pre-conditioning start (unknown if none)."""
+    """Next departure, its pre-conditioning start and forecast (unknown if none)."""
 
     @property
-    def native_value(self) -> datetime | None:
+    def native_value(self) -> datetime | float | None:
+        if self.entity_description.key == "precondition_departure_temperature":
+            return self.preconditioner.departure_forecast
         if self.entity_description.key == "precondition_next_departure":
             return self.preconditioner.next_departure()
         return self.preconditioner.next_start()

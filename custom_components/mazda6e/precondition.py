@@ -23,7 +23,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
-from homeassistant.helpers.event import async_track_point_in_time
+from homeassistant.helpers.event import async_track_point_in_time, async_track_time_interval
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
@@ -48,6 +48,11 @@ WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 EVENT_PRECONDITIONING = f"{DOMAIN}_preconditioning"
 
 LEAD_MIN, LEAD_MAX = 5, 30
+
+# How often the forecast for the next departure is fetched again, and how far
+# the closest forecast hour may lie from the departure to still count.
+FORECAST_REFRESH = timedelta(minutes=30)
+FORECAST_MAX_GAP = timedelta(minutes=90)
 STORAGE_VERSION = 1
 
 # The single weekly plan of versions before 0.8, as it was stored by default.
@@ -158,6 +163,9 @@ class Preconditioner:
         self.last_run: dict[str, Any] | None = None
         self._running = asyncio.Lock()
         self._scheduled: tuple[datetime, DeparturePlan] | None = None
+        self._unsub_forecast: CALLBACK_TYPE | None = None
+        # Forecast temperature (°C) at the next departure; None if unknown.
+        self.departure_forecast: float | None = None
 
     # ------------------------------------------------------------ settings
 
@@ -169,6 +177,9 @@ class Preconditioner:
         days = stored.get("days")
         if isinstance(days, dict) and (stored.get("enabled") or days != LEGACY_DAYS):
             self.legacy_days = days
+        self._unsub_forecast = async_track_time_interval(
+            self.hass, lambda _now: self._refresh_forecast(), FORECAST_REFRESH
+        )
         self._schedule()
 
     async def async_forget_legacy_days(self) -> None:
@@ -249,7 +260,30 @@ class Preconditioner:
             start = departure - timedelta(minutes=self.settings["lead"])
             self._unsub_timer = async_track_point_in_time(self.hass, self._async_timer, start)
         self._sync_battery_plan(departure)
+        self._refresh_forecast()
         self._notify()
+
+    @callback
+    def _refresh_forecast(self) -> None:
+        """Fetch the forecast temperature for the next departure in the background."""
+        departure = self._scheduled[0] if self._scheduled else None
+        entity_id = self.settings.get("weather_entity")
+        if departure is None or not entity_id:
+            if self.departure_forecast is not None:
+                self.departure_forecast = None
+                self._notify()
+            return
+
+        async def refresh() -> None:
+            temperature = await self._async_forecast_temperature(entity_id, departure)
+            current = self._scheduled[0] if self._scheduled else None
+            if current != departure or self.settings.get("weather_entity") != entity_id:
+                return  # plans changed meanwhile; a newer refresh is on its way
+            if temperature != self.departure_forecast:
+                self.departure_forecast = temperature
+                self._notify()
+
+        self.hass.async_create_background_task(refresh(), f"{DOMAIN} departure forecast")
 
     async def _async_timer(self, _now: datetime) -> None:
         self._unsub_timer = None
@@ -308,6 +342,8 @@ class Preconditioner:
             forecast,
             key=lambda f: abs((dt_util.parse_datetime(f["datetime"]) - when).total_seconds()),
         )
+        if abs(dt_util.parse_datetime(closest["datetime"]) - when) > FORECAST_MAX_GAP:
+            return None  # departure lies beyond the forecast
         temperature = closest.get("temperature")
         return float(temperature) if temperature is not None else None
 
@@ -344,6 +380,9 @@ class Preconditioner:
         if self._unsub_timer:
             self._unsub_timer()
             self._unsub_timer = None
+        if self._unsub_forecast:
+            self._unsub_forecast()
+            self._unsub_forecast = None
 
     # ----------------------------------------------------------- execution
 
