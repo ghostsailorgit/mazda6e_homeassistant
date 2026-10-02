@@ -22,8 +22,12 @@ from datetime import datetime, time, timedelta
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
-from homeassistant.helpers.event import async_track_point_in_time, async_track_time_interval
+from homeassistant.core import CALLBACK_TYPE, Event, EventStateChangedData, HomeAssistant, callback
+from homeassistant.helpers.event import (
+    async_track_point_in_time,
+    async_track_state_change_event,
+    async_track_time_interval,
+)
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
@@ -164,6 +168,8 @@ class Preconditioner:
         self._running = asyncio.Lock()
         self._scheduled: tuple[datetime, DeparturePlan] | None = None
         self._unsub_forecast: CALLBACK_TYPE | None = None
+        self._unsub_weather: CALLBACK_TYPE | None = None
+        self._weather_tracked: str | None = None
         # Forecast temperature (°C) at the next departure and whether it came from
         # the "hourly" forecast or, for departures beyond it, the "daily" low.
         self.departure_forecast: float | None = None
@@ -262,8 +268,32 @@ class Preconditioner:
             start = departure - timedelta(minutes=self.settings["lead"])
             self._unsub_timer = async_track_point_in_time(self.hass, self._async_timer, start)
         self._sync_battery_plan(departure)
+        self._track_weather()
         self._refresh_forecast()
         self._notify()
+
+    @callback
+    def _track_weather(self) -> None:
+        """Fetch the forecast again whenever the weather entity changes.
+
+        Covers a weather integration that is set up after this one (forecast
+        not yet available at start) and picks up new forecasts right away.
+        """
+        entity_id = self.settings.get("weather_entity") or None
+        if entity_id == self._weather_tracked:
+            return
+        if self._unsub_weather:
+            self._unsub_weather()
+            self._unsub_weather = None
+        self._weather_tracked = entity_id
+        if entity_id:
+            self._unsub_weather = async_track_state_change_event(
+                self.hass, entity_id, self._async_weather_changed
+            )
+
+    @callback
+    def _async_weather_changed(self, _event: Event[EventStateChangedData]) -> None:
+        self._refresh_forecast()
 
     @callback
     def _async_forecast_interval(self, _now: datetime) -> None:
@@ -410,6 +440,10 @@ class Preconditioner:
         if self._unsub_forecast:
             self._unsub_forecast()
             self._unsub_forecast = None
+        if self._unsub_weather:
+            self._unsub_weather()
+            self._unsub_weather = None
+            self._weather_tracked = None
 
     # ----------------------------------------------------------- execution
 

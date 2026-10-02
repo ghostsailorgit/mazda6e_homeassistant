@@ -170,7 +170,7 @@ schaltet alle Pläne ein oder aus.
 **Anzeige:** *Nächste Abfahrt* und *Nächster Vorklimatisierungsstart* (Zeitstempel; die
 Attribute zeigen den Plan, den letzten Lauf und fehlgeschlagene Schritte) sowie
 *Temperatur bei Abfahrt* – die stündliche Vorhersage der Wetterquelle für die nächste
-Abfahrt, alle 30 Minuten aktualisiert. Liegt die Abfahrt jenseits der
+Abfahrt, alle 30 Minuten und bei jeder Änderung der Wetter-Entität aktualisiert. Liegt die Abfahrt jenseits der
 Stundenvorhersage (meist ~2 Tage), zeigt er den vorhergesagten Tiefstwert des Tages
 (Attribut `forecast_type`: `hourly` / `daily`); unbekannt ohne Wetterquelle oder
 Vorhersage. Die Wetterbedingung fürs Vorheizen nutzt immer die Stundenvorhersage.

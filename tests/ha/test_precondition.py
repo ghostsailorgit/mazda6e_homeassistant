@@ -417,6 +417,27 @@ async def test_forecast_at_next_departure(hass: HomeAssistant, client, freezer) 
     assert state.attributes["forecast_type"] is None
 
 
+async def test_forecast_follows_late_weather_entity(hass: HomeAssistant, client, freezer) -> None:
+    """A weather integration that starts after us still gets the forecast shown."""
+    freezer.move_to(_local(2026, 10, 5, 6, 0))
+    await _setup(hass, _plan("work", "Work", "07:30", WEEKDAYS_MON_FRI))
+    sensor = "sensor.mazda_6e_forecast_at_departure"
+    hass.states.async_set("weather.test", "cloudy")
+    await _call(hass, "select", "select_option", "select.mazda_6e_pre_conditioning_weather_source", option="weather.test")
+    await _call(hass, "switch", "turn_on", MASTER)
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert hass.states.get(sensor).state == "unknown"  # weather service not there yet
+
+    async def get_forecasts(call: ServiceCall):
+        hourly = [{"datetime": _local(2026, 10, 5, 7, 0).isoformat(), "temperature": 2.5}]
+        return {"weather.test": {"forecast": hourly}}
+
+    hass.services.async_register("weather", "get_forecasts", get_forecasts, supports_response=SupportsResponse.ONLY)
+    hass.states.async_set("weather.test", "snowy")
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert float(hass.states.get(sensor).state) == 2.5
+
+
 async def test_plan_button_reports_failed_steps(hass: HomeAssistant, client) -> None:
     await _setup(hass)
     client["set_climate"].side_effect = MazdaCommandError("offline")
