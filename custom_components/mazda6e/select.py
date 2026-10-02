@@ -151,7 +151,7 @@ class Mazda6ePlanSeatHeat(Mazda6ePlanEntity, SelectEntity):
 
 
 class Mazda6ePlanWeatherEntity(Mazda6ePlanEntity, SelectEntity):
-    """Weather entity that gates the weekly schedule by forecast temperature."""
+    """Weather entity that gates the departure plans by forecast temperature."""
 
     @property
     def options(self) -> list[str]:

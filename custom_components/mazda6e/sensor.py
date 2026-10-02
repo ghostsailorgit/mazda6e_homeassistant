@@ -228,9 +228,12 @@ class Mazda6ePlanSensor(Mazda6ePlanEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         last = self.preconditioner.last_run or {}
+        slot = self.preconditioner.next_slot()
         return {
+            "plan": slot[1].name if slot else None,
             "skipped_departure": self.preconditioner.settings["skip"],
             "last_action": last.get("action"),
+            "last_plan": last.get("plan"),
             "last_source": last.get("source"),
             "last_time": last.get("time"),
             "last_failed_steps": last.get("failed"),

@@ -8,8 +8,16 @@ from collections.abc import Mapping
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
-from homeassistant.const import CONF_EMAIL, CONF_PASSWORD, CONF_SCAN_INTERVAL
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigEntryState,
+    ConfigFlow,
+    ConfigFlowResult,
+    ConfigSubentryFlow,
+    OptionsFlow,
+    SubentryFlowResult,
+)
+from homeassistant.const import CONF_EMAIL, CONF_NAME, CONF_PASSWORD, CONF_SCAN_INTERVAL
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
@@ -17,15 +25,19 @@ from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
+    SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
     TextSelector,
     TextSelectorConfig,
     TextSelectorType,
+    TimeSelector,
 )
 
 from .api import (
+    CLIMATE_MAX_TEMP,
+    CLIMATE_MIN_TEMP,
     Mazda6eClient,
     MazdaApiError,
     MazdaAuthError,
@@ -45,10 +57,17 @@ from .const import (
     DOMAIN,
     MAX_SCAN_INTERVAL,
     MIN_SCAN_INTERVAL,
+    PLAN_ENABLED,
+    PLAN_TEMPERATURE,
+    PLAN_TIME,
+    PLAN_VEHICLE,
+    PLAN_WEEKDAYS,
     REGION_ASIA,
     REGION_EUROPE,
+    SUBENTRY_PLAN,
 )
 from .crypto import generate_key_pair
+from .precondition import WEEKDAYS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -178,6 +197,114 @@ class Mazda6eConfigFlow(ConfigFlow, domain=DOMAIN):
     @callback
     def async_get_options_flow(config_entry) -> OptionsFlow:
         return Mazda6eOptionsFlow()
+
+    @classmethod
+    @callback
+    def async_get_supported_subentry_types(
+        cls, config_entry: ConfigEntry
+    ) -> dict[str, type[ConfigSubentryFlow]]:
+        # Pre-conditioning sends remote commands, which need the control key.
+        if not config_entry.data.get(CONF_CONTROL_PRIVATE_KEY):
+            return {}
+        return {SUBENTRY_PLAN: DeparturePlanFlow}
+
+
+def _plan_schema(defaults: Mapping[str, Any], vehicles: dict[str, str]) -> vol.Schema:
+    fields: dict[Any, Any] = {
+        vol.Required(CONF_NAME, default=defaults.get(CONF_NAME, "")): TextSelector(),
+        vol.Required(PLAN_TIME, default=defaults.get(PLAN_TIME, "07:30:00")): TimeSelector(),
+        vol.Required(PLAN_WEEKDAYS, default=list(defaults.get(PLAN_WEEKDAYS, WEEKDAYS[:5]))): SelectSelector(
+            SelectSelectorConfig(
+                options=list(WEEKDAYS),
+                multiple=True,
+                mode=SelectSelectorMode.LIST,
+                translation_key="weekday",
+            )
+        ),
+        vol.Required(PLAN_TEMPERATURE, default=defaults.get(PLAN_TEMPERATURE, 21.0)): NumberSelector(
+            NumberSelectorConfig(
+                min=CLIMATE_MIN_TEMP,
+                max=CLIMATE_MAX_TEMP,
+                step=0.5,
+                mode=NumberSelectorMode.BOX,
+                unit_of_measurement="°C",
+            )
+        ),
+    }
+    if len(vehicles) > 1:
+        fields[vol.Required(PLAN_VEHICLE, default=defaults.get(PLAN_VEHICLE, next(iter(vehicles))))] = SelectSelector(
+            SelectSelectorConfig(
+                options=[SelectOptionDict(value=vid, label=name) for vid, name in vehicles.items()],
+                mode=SelectSelectorMode.DROPDOWN,
+            )
+        )
+    return vol.Schema(fields)
+
+
+def _plan_errors(user_input: Mapping[str, Any]) -> dict[str, str]:
+    if not user_input[CONF_NAME].strip():
+        return {CONF_NAME: "name_required"}
+    if not user_input[PLAN_WEEKDAYS]:
+        return {PLAN_WEEKDAYS: "weekday_required"}
+    return {}
+
+
+def _plan_data(user_input: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        PLAN_TIME: user_input[PLAN_TIME][:5],
+        PLAN_WEEKDAYS: [day for day in WEEKDAYS if day in user_input[PLAN_WEEKDAYS]],
+        PLAN_TEMPERATURE: float(user_input[PLAN_TEMPERATURE]),
+    }
+
+
+class DeparturePlanFlow(ConfigSubentryFlow):
+    """Add or change a departure plan: name, time, weekdays and temperature."""
+
+    def _vehicles(self) -> dict[str, str]:
+        entry = self._get_entry()
+        if entry.state is not ConfigEntryState.LOADED:
+            return {}
+        coordinator = entry.runtime_data
+        return {vid: coordinator.data[vid].vehicle.display_name for vid in coordinator.preconditioners}
+
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        vehicles = self._vehicles()
+        if not vehicles:
+            return self.async_abort(reason="not_loaded")
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            errors = _plan_errors(user_input)
+            if not errors:
+                return self.async_create_entry(
+                    title=user_input[CONF_NAME].strip(),
+                    data={
+                        **_plan_data(user_input),
+                        PLAN_VEHICLE: user_input.get(PLAN_VEHICLE, next(iter(vehicles))),
+                        PLAN_ENABLED: True,
+                    },
+                )
+        return self.async_show_form(
+            step_id="user", data_schema=_plan_schema(user_input or {}, vehicles), errors=errors
+        )
+
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        subentry = self._get_reconfigure_subentry()
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            errors = _plan_errors(user_input)
+            if not errors:
+                return self.async_update_and_abort(
+                    self._get_entry(),
+                    subentry,
+                    title=user_input[CONF_NAME].strip(),
+                    data={**subentry.data, **_plan_data(user_input)},
+                )
+        defaults = user_input or {
+            **subentry.data,
+            CONF_NAME: subentry.title,
+            PLAN_TIME: f"{subentry.data[PLAN_TIME]}:00",
+        }
+        return self.async_show_form(step_id="reconfigure", data_schema=_plan_schema(defaults, {}), errors=errors)
 
 
 class Mazda6eOptionsFlow(OptionsFlow):

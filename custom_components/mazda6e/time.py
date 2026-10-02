@@ -1,4 +1,4 @@
-"""Times: departure per weekday, the car's charging and battery preheat plans."""
+"""Times: departure of each departure plan, the car's charging and battery preheat plans."""
 
 from __future__ import annotations
 
@@ -10,9 +10,15 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
+from .const import PLAN_TIME
 from .coordinator import Mazda6eConfigEntry
-from .entity import Mazda6eControlEntity, Mazda6ePlanEntity, has_control, plan_entities
-from .precondition import WEEKDAYS, parse_time
+from .entity import (
+    Mazda6eControlEntity,
+    Mazda6eDeparturePlanEntity,
+    add_departure_plan_entities,
+    has_control,
+)
+from .precondition import parse_time
 
 BATTERY_PREHEAT_TIME = TimeEntityDescription(
     key="battery_preheat_time", translation_key="battery_preheat_time", icon="mdi:clock-outline"
@@ -25,15 +31,6 @@ CHARGE_END = TimeEntityDescription(
 )
 
 PREHEAT_FORMAT = "%Y%m%d%H%M%S"
-
-
-def _departure(day: str) -> TimeEntityDescription:
-    return TimeEntityDescription(
-        key=f"precondition_departure_{day}",
-        translation_key=f"precondition_departure_{day}",
-        icon="mdi:car-clock",
-        entity_category=EntityCategory.CONFIG,
-    )
 
 
 def _hhmm(value: object) -> time | None:
@@ -59,11 +56,23 @@ async def async_setup_entry(
             entities.append(Mazda6eChargeTime(coordinator, vid, CHARGE_START, "startTime"))
             entities.append(Mazda6eChargeTime(coordinator, vid, CHARGE_END, "endTime"))
     async_add_entities(entities)
-    async_add_entities(
-        plan_entities(
-            entry,
-            lambda vid, p: [Mazda6eDepartureTime(coordinator, vid, _departure(day), p, day) for day in WEEKDAYS],
-        )
+    add_departure_plan_entities(
+        entry,
+        async_add_entities,
+        lambda vid, p, subentry_id: [
+            Mazda6eDepartureTime(
+                coordinator,
+                vid,
+                TimeEntityDescription(
+                    key=f"departure_plan_{subentry_id}_time",
+                    translation_key="departure_plan_time",
+                    icon="mdi:clock-outline",
+                    entity_category=EntityCategory.CONFIG,
+                ),
+                p,
+                subentry_id,
+            )
+        ],
     )
 
 
@@ -119,14 +128,10 @@ class Mazda6eChargeTime(Mazda6eControlEntity, TimeEntity):
         self.async_write_ha_state()
 
 
-class Mazda6eDepartureTime(Mazda6ePlanEntity, TimeEntity):
-    def __init__(self, coordinator, vehicle_id, description, preconditioner, day: str) -> None:
-        super().__init__(coordinator, vehicle_id, description, preconditioner)
-        self._day = day
-
+class Mazda6eDepartureTime(Mazda6eDeparturePlanEntity, TimeEntity):
     @property
     def native_value(self) -> time:
-        return parse_time(self.preconditioner.settings["days"][self._day]["time"])
+        return parse_time(self.plan_data[PLAN_TIME])
 
     async def async_set_value(self, value: time) -> None:
-        await self.preconditioner.async_update(day=self._day, time=value.strftime("%H:%M"))
+        self.update_plan(**{PLAN_TIME: value.strftime("%H:%M")})

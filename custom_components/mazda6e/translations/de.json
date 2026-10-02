@@ -55,11 +55,59 @@
       "unknown": "Unerwarteter Fehler, siehe Log."
     }
   },
+  "config_subentries": {
+    "departure_plan": {
+      "initiate_flow": {
+        "user": "Abfahrtsplan hinzufügen"
+      },
+      "entry_type": "Abfahrtsplan",
+      "step": {
+        "user": {
+          "title": "Abfahrtsplan",
+          "description": "Das Auto wird vor jeder Abfahrt dieses Plans vorklimatisiert, solange der Plan und „Vorklimatisierung Abfahrtspläne“ eingeschaltet sind.",
+          "data": {
+            "name": "Name",
+            "time": "Abfahrtszeit",
+            "weekdays": "Wochentage",
+            "temperature": "Temperatur",
+            "vehicle_id": "Auto"
+          }
+        },
+        "reconfigure": {
+          "title": "Abfahrtsplan",
+          "data": {
+            "name": "Name",
+            "time": "Abfahrtszeit",
+            "weekdays": "Wochentage",
+            "temperature": "Temperatur"
+          }
+        }
+      },
+      "error": {
+        "name_required": "Bitte einen Namen eingeben.",
+        "weekday_required": "Bitte mindestens einen Wochentag wählen."
+      },
+      "abort": {
+        "not_loaded": "Die Integration muss geladen sein und Fernbefehle senden können."
+      }
+    }
+  },
   "selector": {
     "region": {
       "options": {
         "europe": "Europa",
         "asia": "Asien / Pazifik"
+      }
+    },
+    "weekday": {
+      "options": {
+        "mon": "Montag",
+        "tue": "Dienstag",
+        "wed": "Mittwoch",
+        "thu": "Donnerstag",
+        "fri": "Freitag",
+        "sat": "Samstag",
+        "sun": "Sonntag"
       }
     }
   },
@@ -250,6 +298,9 @@
       },
       "precondition_cold_below": {
         "name": "Vorklimatisierung: Mindesttemperatur"
+      },
+      "departure_plan_temperature": {
+        "name": "Temperatur"
       }
     },
     "switch": {
@@ -266,7 +317,7 @@
         "name": "Ladezeitplan (Plan im Auto)"
       },
       "precondition_schedule": {
-        "name": "Vorklimatisierung Wochenplan"
+        "name": "Vorklimatisierung Abfahrtspläne"
       },
       "precondition_steering_wheel": {
         "name": "Vorklimatisierung: Lenkradheizung"
@@ -277,26 +328,8 @@
       "precondition_battery": {
         "name": "Vorklimatisierung: Akku vorheizen"
       },
-      "precondition_mon": {
-        "name": "Vorklimatisierung Montag"
-      },
-      "precondition_tue": {
-        "name": "Vorklimatisierung Dienstag"
-      },
-      "precondition_wed": {
-        "name": "Vorklimatisierung Mittwoch"
-      },
-      "precondition_thu": {
-        "name": "Vorklimatisierung Donnerstag"
-      },
-      "precondition_fri": {
-        "name": "Vorklimatisierung Freitag"
-      },
-      "precondition_sat": {
-        "name": "Vorklimatisierung Samstag"
-      },
-      "precondition_sun": {
-        "name": "Vorklimatisierung Sonntag"
+      "departure_plan": {
+        "name": "Abfahrtsplan"
       }
     },
     "time": {
@@ -309,26 +342,8 @@
       "charge_schedule_end": {
         "name": "Ladezeitplan Ende"
       },
-      "precondition_departure_mon": {
-        "name": "Abfahrt Montag"
-      },
-      "precondition_departure_tue": {
-        "name": "Abfahrt Dienstag"
-      },
-      "precondition_departure_wed": {
-        "name": "Abfahrt Mittwoch"
-      },
-      "precondition_departure_thu": {
-        "name": "Abfahrt Donnerstag"
-      },
-      "precondition_departure_fri": {
-        "name": "Abfahrt Freitag"
-      },
-      "precondition_departure_sat": {
-        "name": "Abfahrt Samstag"
-      },
-      "precondition_departure_sun": {
-        "name": "Abfahrt Sonntag"
+      "departure_plan_time": {
+        "name": "Abfahrtszeit"
       }
     },
     "select": {
@@ -469,7 +484,7 @@
     },
     "skip_next_departure": {
       "name": "Nächste Abfahrt überspringen",
-      "description": "Der Wochenplan lässt die nächste Abfahrt aus, z. B. an einem Feiertag.",
+      "description": "Die Abfahrtspläne lassen die nächste Abfahrt aus, z. B. an einem Feiertag.",
       "fields": {
         "device_id": {
           "name": "Auto",

@@ -2,22 +2,33 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity import EntityDescription
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
 from .api import MazdaAuthError, MazdaError, MazdaPinError
-from .const import CONF_CONTROL_PRIVATE_KEY, DOMAIN
+from .const import CONF_CONTROL_PRIVATE_KEY, DOMAIN, PLAN_VEHICLE, SUBENTRY_PLAN
 from .coordinator import Mazda6eConfigEntry, Mazda6eCoordinator, VehicleData
-from .models import VehicleStatus
+from .models import Vehicle, VehicleStatus
 from .precondition import Preconditioner
+
+
+def car_device_info(vehicle: Vehicle) -> DeviceInfo:
+    return DeviceInfo(
+        identifiers={(DOMAIN, vehicle.vin)},
+        manufacturer="Mazda",
+        model=vehicle.model_name or vehicle.series_name or "6e",
+        name=vehicle.display_name,
+        serial_number=vehicle.vin,
+    )
 
 
 class Mazda6eEntity(CoordinatorEntity[Mazda6eCoordinator]):
@@ -34,13 +45,7 @@ class Mazda6eEntity(CoordinatorEntity[Mazda6eCoordinator]):
         self._vehicle_id = vehicle_id
         vehicle = coordinator.data[vehicle_id].vehicle
         self._attr_unique_id = f"{vehicle.vin}_{description.key}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, vehicle.vin)},
-            manufacturer="Mazda",
-            model=vehicle.model_name or vehicle.series_name or "6e",
-            name=vehicle.display_name,
-            serial_number=vehicle.vin,
-        )
+        self._attr_device_info = car_device_info(vehicle)
 
     @property
     def _data(self) -> VehicleData | None:
@@ -165,3 +170,60 @@ def plan_entities(
         for vehicle_id, preconditioner in coordinator.preconditioners.items()
         for entity in factory(vehicle_id, preconditioner)
     ]
+
+
+class Mazda6eDeparturePlanEntity(Mazda6ePlanEntity):
+    """On/off, time or temperature of one departure plan (a config subentry)."""
+
+    def __init__(
+        self,
+        coordinator: Mazda6eCoordinator,
+        vehicle_id: str,
+        description: EntityDescription,
+        preconditioner: Preconditioner,
+        subentry_id: str,
+    ) -> None:
+        super().__init__(coordinator, vehicle_id, description, preconditioner)
+        self._subentry_id = subentry_id
+        # A device belongs to one subentry, so each plan is its own device
+        # hanging off the car instead of sharing the car's device.
+        vehicle = coordinator.data[vehicle_id].vehicle
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"{vehicle.vin}_{subentry_id}")},
+            name=f"{vehicle.display_name} {coordinator.config_entry.subentries[subentry_id].title}",
+            entry_type=DeviceEntryType.SERVICE,
+        )
+        if "via_device_id" in DeviceInfo.__annotations__:  # HA 2026.10+
+            self._attr_device_info["via_device_id"] = coordinator.car_device_ids[vehicle_id]
+        else:
+            self._attr_device_info["via_device"] = (DOMAIN, vehicle.vin)
+
+    @property
+    def plan_data(self) -> Mapping[str, Any]:
+        return self.coordinator.config_entry.subentries[self._subentry_id].data
+
+    @callback
+    def update_plan(self, **changes: Any) -> None:
+        """Store a change; the entry's update listener plans again."""
+        entry = self.coordinator.config_entry
+        subentry = entry.subentries[self._subentry_id]
+        self.hass.config_entries.async_update_subentry(entry, subentry, data={**subentry.data, **changes})
+
+
+def add_departure_plan_entities(
+    entry: Mazda6eConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+    factory: Callable[[str, Preconditioner, str], list[Any]],
+) -> None:
+    """Add the entities of every departure plan, attached to its subentry."""
+    coordinator = entry.runtime_data
+    for subentry_id, subentry in entry.subentries.items():
+        if subentry.subentry_type != SUBENTRY_PLAN:
+            continue
+        preconditioner = coordinator.preconditioners.get(subentry.data.get(PLAN_VEHICLE))
+        if preconditioner is None:
+            continue
+        async_add_entities(
+            factory(preconditioner.vehicle_id, preconditioner, subentry_id),
+            config_subentry_id=subentry_id,
+        )

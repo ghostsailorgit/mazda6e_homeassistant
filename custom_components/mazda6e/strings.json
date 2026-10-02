@@ -55,11 +55,59 @@
       "unknown": "Unexpected error, see the log."
     }
   },
+  "config_subentries": {
+    "departure_plan": {
+      "initiate_flow": {
+        "user": "Add departure plan"
+      },
+      "entry_type": "Departure plan",
+      "step": {
+        "user": {
+          "title": "Departure plan",
+          "description": "The car is pre-conditioned before each departure of this plan, as long as the plan and \"Pre-conditioning departure plans\" are switched on.",
+          "data": {
+            "name": "Name",
+            "time": "Departure time",
+            "weekdays": "Weekdays",
+            "temperature": "Temperature",
+            "vehicle_id": "Car"
+          }
+        },
+        "reconfigure": {
+          "title": "Departure plan",
+          "data": {
+            "name": "Name",
+            "time": "Departure time",
+            "weekdays": "Weekdays",
+            "temperature": "Temperature"
+          }
+        }
+      },
+      "error": {
+        "name_required": "Enter a name.",
+        "weekday_required": "Pick at least one weekday."
+      },
+      "abort": {
+        "not_loaded": "The integration has to be loaded and able to send remote commands."
+      }
+    }
+  },
   "selector": {
     "region": {
       "options": {
         "europe": "Europe",
         "asia": "Asia / Pacific"
+      }
+    },
+    "weekday": {
+      "options": {
+        "mon": "Monday",
+        "tue": "Tuesday",
+        "wed": "Wednesday",
+        "thu": "Thursday",
+        "fri": "Friday",
+        "sat": "Saturday",
+        "sun": "Sunday"
       }
     }
   },
@@ -250,6 +298,9 @@
       },
       "precondition_cold_below": {
         "name": "Pre-conditioning: minimum temperature"
+      },
+      "departure_plan_temperature": {
+        "name": "Temperature"
       }
     },
     "switch": {
@@ -266,7 +317,7 @@
         "name": "Charging schedule (car plan)"
       },
       "precondition_schedule": {
-        "name": "Pre-conditioning weekly plan"
+        "name": "Pre-conditioning departure plans"
       },
       "precondition_steering_wheel": {
         "name": "Pre-conditioning: steering wheel heating"
@@ -277,26 +328,8 @@
       "precondition_battery": {
         "name": "Pre-conditioning: battery preheating"
       },
-      "precondition_mon": {
-        "name": "Pre-conditioning Monday"
-      },
-      "precondition_tue": {
-        "name": "Pre-conditioning Tuesday"
-      },
-      "precondition_wed": {
-        "name": "Pre-conditioning Wednesday"
-      },
-      "precondition_thu": {
-        "name": "Pre-conditioning Thursday"
-      },
-      "precondition_fri": {
-        "name": "Pre-conditioning Friday"
-      },
-      "precondition_sat": {
-        "name": "Pre-conditioning Saturday"
-      },
-      "precondition_sun": {
-        "name": "Pre-conditioning Sunday"
+      "departure_plan": {
+        "name": "Departure plan"
       }
     },
     "time": {
@@ -309,26 +342,8 @@
       "charge_schedule_end": {
         "name": "Charging schedule end"
       },
-      "precondition_departure_mon": {
-        "name": "Departure Monday"
-      },
-      "precondition_departure_tue": {
-        "name": "Departure Tuesday"
-      },
-      "precondition_departure_wed": {
-        "name": "Departure Wednesday"
-      },
-      "precondition_departure_thu": {
-        "name": "Departure Thursday"
-      },
-      "precondition_departure_fri": {
-        "name": "Departure Friday"
-      },
-      "precondition_departure_sat": {
-        "name": "Departure Saturday"
-      },
-      "precondition_departure_sun": {
-        "name": "Departure Sunday"
+      "departure_plan_time": {
+        "name": "Departure time"
       }
     },
     "select": {
@@ -469,7 +484,7 @@
     },
     "skip_next_departure": {
       "name": "Skip next departure",
-      "description": "The weekly plan leaves out its next departure, e.g. on a holiday.",
+      "description": "The departure plans leave out their next departure, e.g. on a holiday.",
       "fields": {
         "device_id": {
           "name": "Car",

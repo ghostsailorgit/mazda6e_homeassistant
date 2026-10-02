@@ -1,14 +1,14 @@
 """Pre-conditioning: heat or cool the car before departure.
 
-One ``Preconditioner`` per car keeps a profile (temperature, seat heating,
-steering wheel heating, defrost, battery preheating) and a weekly plan with
-one departure time per weekday. It starts the profile ``lead`` minutes before
-the next planned departure. The same profile can be started from outside
-through the ``mazda6e.start_preconditioning`` service, e.g. from an
-automation triggered by a calendar, an alarm clock or presence.
+One ``Preconditioner`` per car keeps a profile (seat heating, steering wheel
+heating, defrost, battery preheating, lead time) and runs it ``lead``
+minutes before the next departure of its departure plans. Departure plans
+are config subentries (name, time, weekdays, temperature, on/off), so users
+add as many as they need from the integration page. The same profile can be
+started from outside through the ``mazda6e.start_preconditioning`` service.
 
-Settings are kept in Home Assistant's storage, not on the car, so the plan
-works without any app-side schedule.
+Settings are kept in Home Assistant, not on the car, so the plans work
+without any app-side schedule.
 """
 
 from __future__ import annotations
@@ -17,16 +17,26 @@ import asyncio
 import logging
 from collections.abc import Callable
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import datetime, time, timedelta
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.event import async_track_point_in_time
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .api import CLIMATE_MAX_TEMP, CLIMATE_MIN_TEMP, MazdaError
-from .const import DOMAIN
+from .const import (
+    DOMAIN,
+    PLAN_ENABLED,
+    PLAN_TEMPERATURE,
+    PLAN_TIME,
+    PLAN_VEHICLE,
+    PLAN_WEEKDAYS,
+    SUBENTRY_PLAN,
+)
 
 if TYPE_CHECKING:
     from .coordinator import Mazda6eCoordinator
@@ -40,9 +50,13 @@ EVENT_PRECONDITIONING = f"{DOMAIN}_preconditioning"
 LEAD_MIN, LEAD_MAX = 5, 30
 STORAGE_VERSION = 1
 
+# The single weekly plan of versions before 0.8, as it was stored by default.
+LEGACY_DAYS: dict[str, dict[str, Any]] = {
+    day: {"on": day not in ("sat", "sun"), "time": "07:30"} for day in WEEKDAYS
+}
+
 DEFAULTS: dict[str, Any] = {
     "enabled": False,
-    "days": {day: {"on": day not in ("sat", "sun"), "time": "07:30"} for day in WEEKDAYS},
     "lead": 15,
     "temperature": 21.0,
     "seat_heat": 0,
@@ -62,50 +76,117 @@ def parse_time(value: str) -> time:
     return time(int(hour), int(minute))
 
 
-class Preconditioner:
-    """Profile, weekly plan and execution for one car."""
+@dataclass(frozen=True)
+class DeparturePlan:
+    """One departure plan of a car, from a config subentry."""
 
-    def __init__(self, hass: HomeAssistant, coordinator: Mazda6eCoordinator, vehicle_id: str) -> None:
+    plan_id: str
+    name: str
+    time: time
+    weekdays: frozenset[str]
+    temperature: float
+    enabled: bool
+
+
+def plans_from_entry(entry: ConfigEntry, vehicle_id: str) -> list[DeparturePlan]:
+    """The departure plans of one car, earliest departure time first."""
+    plans = [
+        DeparturePlan(
+            plan_id=subentry.subentry_id,
+            name=subentry.title,
+            time=parse_time(subentry.data[PLAN_TIME]),
+            weekdays=frozenset(subentry.data[PLAN_WEEKDAYS]),
+            temperature=float(subentry.data[PLAN_TEMPERATURE]),
+            enabled=bool(subentry.data[PLAN_ENABLED]),
+        )
+        for subentry in entry.subentries.values()
+        if subentry.subentry_type == SUBENTRY_PLAN and subentry.data.get(PLAN_VEHICLE) == vehicle_id
+    ]
+    return sorted(plans, key=lambda plan: plan.time)
+
+
+def legacy_plan_data(days: dict[str, Any], temperature: float) -> list[tuple[str, dict[str, Any]]]:
+    """Turn the per-weekday plan of versions before 0.8 into departure plans.
+
+    Days with the same time and on/off state become one plan; days still on
+    their untouched default (07:30, off) are dropped. Returns (title, data)
+    pairs without the vehicle id.
+    """
+    groups: dict[tuple[str, bool], list[str]] = {}
+    for day in WEEKDAYS:
+        setting = {**LEGACY_DAYS[day], **(days.get(day) or {})}
+        on, at = bool(setting["on"]), str(setting["time"])[:5]
+        if not on and at == "07:30":
+            continue
+        groups.setdefault((at, on), []).append(day)
+    return [
+        (
+            at,
+            {
+                PLAN_TIME: at,
+                PLAN_WEEKDAYS: weekdays,
+                PLAN_TEMPERATURE: temperature,
+                PLAN_ENABLED: on,
+            },
+        )
+        for (at, on), weekdays in sorted(groups.items())
+    ]
+
+
+class Preconditioner:
+    """Profile, departure plans and execution for one car."""
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        coordinator: Mazda6eCoordinator,
+        vehicle_id: str,
+        plans: Callable[[], list[DeparturePlan]],
+    ) -> None:
         self.hass = hass
         self.coordinator = coordinator
         self.vehicle_id = vehicle_id
+        self._plans = plans
         entry_id = coordinator.config_entry.entry_id
         self._store: Store[dict[str, Any]] = Store(
             hass, STORAGE_VERSION, f"{DOMAIN}.{entry_id}.{vehicle_id}.precondition"
         )
         self.settings: dict[str, Any] = deepcopy(DEFAULTS)
+        self.legacy_days: dict[str, Any] | None = None
         self._unsub_timer: CALLBACK_TYPE | None = None
         self._listeners: list[Callable[[], None]] = []
         self.last_run: dict[str, Any] | None = None
         self._running = asyncio.Lock()
-        self._scheduled_departure: datetime | None = None
+        self._scheduled: tuple[datetime, DeparturePlan] | None = None
 
     # ------------------------------------------------------------ settings
 
     async def async_load(self) -> None:
         stored = await self._store.async_load() or {}
         for key, value in stored.items():
-            if key == "days" and isinstance(value, dict):
-                for day in WEEKDAYS:
-                    self.settings["days"][day].update(value.get(day) or {})
-            elif key in DEFAULTS:
+            if key in DEFAULTS:
                 self.settings[key] = value
+        days = stored.get("days")
+        if isinstance(days, dict) and (stored.get("enabled") or days != LEGACY_DAYS):
+            self.legacy_days = days
         self._schedule()
 
+    async def async_forget_legacy_days(self) -> None:
+        """Drop the pre-0.8 weekly plan once it was turned into departure plans."""
+        self.legacy_days = None
+        await self._store.async_save(self.settings)
+
     async def async_update(self, **changes: Any) -> None:
-        """Change settings; ``day=<weekday>`` with ``on``/``time`` changes a day."""
-        day = changes.pop("day", None)
-        if day is not None:
-            if day not in WEEKDAYS:
-                raise ValueError(f"Unknown weekday {day}")
-            for key in ("on", "time"):
-                if key in changes:
-                    self.settings["days"][day][key] = changes.pop(key)
         for key, value in changes.items():
             if key not in DEFAULTS:
                 raise ValueError(f"Unknown setting {key}")
             self.settings[key] = value
         await self._store.async_save(self.settings)
+        self._schedule()
+
+    @callback
+    def async_plans_changed(self) -> None:
+        """A departure plan was switched or edited; plan again."""
         self._schedule()
 
     @callback
@@ -124,24 +205,32 @@ class Preconditioner:
 
     # ------------------------------------------------------------ planning
 
-    def next_departure(self, now: datetime | None = None, *, include_skipped: bool = False) -> datetime | None:
-        """Next departure whose start time still lies in the future."""
+    def next_slot(
+        self, now: datetime | None = None, *, include_skipped: bool = False
+    ) -> tuple[datetime, DeparturePlan] | None:
+        """Next departure (and its plan) whose start time still lies in the future."""
         if not self.settings["enabled"]:
             return None
         now = now or dt_util.now()
         lead = timedelta(minutes=self.settings["lead"])
+        plans = [plan for plan in self._plans() if plan.enabled]
         for offset in range(8):
             date = (now + timedelta(days=offset)).date()
-            day = self.settings["days"][WEEKDAYS[date.weekday()]]
-            if not day["on"]:
-                continue
-            departure = datetime.combine(date, parse_time(day["time"]), tzinfo=now.tzinfo)
-            if departure - lead <= now:
-                continue
-            if not include_skipped and self.settings["skip"] == departure.isoformat():
-                continue
-            return departure
+            weekday = WEEKDAYS[date.weekday()]
+            for plan in plans:  # earliest time first
+                if weekday not in plan.weekdays:
+                    continue
+                departure = datetime.combine(date, plan.time, tzinfo=now.tzinfo)
+                if departure - lead <= now:
+                    continue
+                if not include_skipped and self.settings["skip"] == departure.isoformat():
+                    continue
+                return departure, plan
         return None
+
+    def next_departure(self, now: datetime | None = None, *, include_skipped: bool = False) -> datetime | None:
+        slot = self.next_slot(now, include_skipped=include_skipped)
+        return slot[0] if slot else None
 
     def next_start(self, now: datetime | None = None) -> datetime | None:
         departure = self.next_departure(now)
@@ -154,8 +243,8 @@ class Preconditioner:
         if self._unsub_timer:
             self._unsub_timer()
             self._unsub_timer = None
-        departure = self.next_departure()
-        self._scheduled_departure = departure
+        self._scheduled = self.next_slot()
+        departure = self._scheduled[0] if self._scheduled else None
         if departure is not None:
             start = departure - timedelta(minutes=self.settings["lead"])
             self._unsub_timer = async_track_point_in_time(self.hass, self._async_timer, start)
@@ -164,13 +253,21 @@ class Preconditioner:
 
     async def _async_timer(self, _now: datetime) -> None:
         self._unsub_timer = None
-        departure = self._scheduled_departure
-        if departure is not None and not await self._should_preheat(departure):
-            self._record("skipped", "schedule", departure, [])
+        if self._scheduled is None:
+            return
+        departure, plan = self._scheduled
+        if not await self._should_preheat(departure):
+            self._record("skipped", "schedule", departure, [], plan=plan.name)
             self._schedule()
             return
         # Battery preheating was already handed to the car when planning.
-        await self.async_start(source="schedule", departure=departure, battery=False)
+        await self.async_start(
+            source="schedule",
+            departure=departure,
+            plan=plan.name,
+            battery=False,
+            temperature=plan.temperature,
+        )
         self._schedule()
 
     async def _should_preheat(self, departure: datetime) -> bool:
@@ -255,6 +352,7 @@ class Preconditioner:
         *,
         source: str,
         departure: datetime | None = None,
+        plan: str | None = None,
         **overrides: Any,
     ) -> list[str]:
         """Run the profile now. ``overrides`` replace single profile values.
@@ -278,13 +376,13 @@ class Preconditioner:
             steps.append(("steering_wheel", lambda: client.set_steering_wheel_heat(vid, True)))
         if profile["defrost"]:
             steps.append(("defrost", lambda: client.set_defrost(vid, True)))
-        plan = self._battery_plan()
-        if profile["battery"] and plan is not None:
+        battery_plan = self._battery_plan()
+        if profile["battery"] and battery_plan is not None:
             end = departure.strftime("%Y%m%d%H%M%S")
-            steps.append(("battery", lambda: client.set_battery_preheat(vid, plan, end)))
+            steps.append(("battery", lambda: client.set_battery_preheat(vid, battery_plan, end)))
 
         failed = await self._async_run(steps)
-        self._record("started", source, departure, failed)
+        self._record("started", source, departure, failed, plan=plan)
         await self.coordinator.async_request_refresh()
         return failed
 
@@ -325,12 +423,21 @@ class Preconditioner:
         return failed
 
     @callback
-    def _record(self, action: str, source: str, departure: datetime | None, failed: list[str]) -> None:
+    def _record(
+        self,
+        action: str,
+        source: str,
+        departure: datetime | None,
+        failed: list[str],
+        *,
+        plan: str | None = None,
+    ) -> None:
         self.last_run = {
             "action": action,
             "source": source,
             "time": dt_util.now().isoformat(),
             "departure": departure.isoformat() if departure else None,
+            "plan": plan,
             "failed": failed,
         }
         self.hass.bus.async_fire(

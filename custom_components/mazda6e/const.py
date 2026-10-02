@@ -15,6 +15,14 @@ CONF_STORE_PIN = "store_pin"
 REGION_EUROPE = "europe"
 REGION_ASIA = "asia"
 
+# Config subentry type of a departure plan and the keys of its data.
+SUBENTRY_PLAN = "departure_plan"
+PLAN_VEHICLE = "vehicle_id"
+PLAN_TIME = "time"
+PLAN_WEEKDAYS = "weekdays"
+PLAN_TEMPERATURE = "temperature"
+PLAN_ENABLED = "enabled"
+
 # Backends used by the official "MAZDA 6e & CX-6e" app. The car is built on a
 # Changan platform, so the app talks to Changan's "CMA" gateway, not to the
 # classic MyMazda backend.
