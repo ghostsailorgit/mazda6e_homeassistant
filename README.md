@@ -304,7 +304,7 @@ Logging in here logs out the app or Home Assistant if they use the same account.
 | `status [--raw]` | parsed (and raw) vehicle status |
 | `probe [--out DIR]` | queries every known read endpoint, saves the raw answers and prints fields the integration doesn't use yet — attach the output when reporting a car that behaves differently |
 | `call PATH [JSON]` | raw authenticated request, for exploring the API |
-| `lock` / `unlock` | remote locking (asks for the control PIN, or uses the one cached with `login --save-pin`) |
+| `lock` / `unlock` | remote locking (asks for the control PIN, or uses the one cached with `login --save-pin` or `save-pin`) |
 | `windows` | asks the car for a fresh status and prints open state and opening degree per window |
 | `raw CONTROL [JSON] [--no-pin]` | signed remote command, e.g. `raw windows '{"command": "window", "open": false}'` — for finding out parameters; the car really executes it |
 | `climate on 21` / `climate off` | climate control |

@@ -310,7 +310,7 @@ meldet App bzw. Home Assistant ab, wenn sie dasselbe Konto nutzen.
 | `status [--raw]` | ausgewerteter (und roher) Fahrzeugstatus |
 | `probe [--out VERZ]` | fragt alle bekannten Lese-Endpoints ab, speichert die Rohantworten und zeigt Felder, die die Integration noch nicht nutzt – bitte anhängen, wenn sich ein Auto anders verhält |
 | `call PFAD [JSON]` | roher authentifizierter Aufruf, zum Erkunden der API |
-| `lock` / `unlock` | Fernverriegelung (fragt nach der Steuer-PIN oder nutzt die mit `login --save-pin` gespeicherte) |
+| `lock` / `unlock` | Fernverriegelung (fragt nach der Steuer-PIN oder nutzt die mit `login --save-pin` bzw. `save-pin` gespeicherte) |
 | `windows` | fordert einen frischen Status vom Auto an und zeigt Offen-Zustand und Öffnungsgrad je Fenster |
 | `raw CONTROL [JSON] [--no-pin]` | signierter Fernbefehl, z. B. `raw windows '{"command": "window", "open": false}'` – um Parameter herauszufinden; das Auto führt ihn wirklich aus |
 | `climate on 21` / `climate off` | Klimatisierung |
