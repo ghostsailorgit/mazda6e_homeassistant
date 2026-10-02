@@ -287,6 +287,9 @@
       },
       "precondition_skip": {
         "name": "Skip next departure"
+      },
+      "precondition_unskip": {
+        "name": "Undo skip"
       }
     },
     "number": {

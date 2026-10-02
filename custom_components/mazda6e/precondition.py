@@ -22,8 +22,12 @@ from datetime import datetime, time, timedelta
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
-from homeassistant.helpers.event import async_track_point_in_time, async_track_time_interval
+from homeassistant.core import CALLBACK_TYPE, Event, EventStateChangedData, HomeAssistant, callback
+from homeassistant.helpers.event import (
+    async_track_point_in_time,
+    async_track_state_change_event,
+    async_track_time_interval,
+)
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
@@ -164,6 +168,8 @@ class Preconditioner:
         self._running = asyncio.Lock()
         self._scheduled: tuple[datetime, DeparturePlan] | None = None
         self._unsub_forecast: CALLBACK_TYPE | None = None
+        self._unsub_weather: CALLBACK_TYPE | None = None
+        self._weather_tracked: str | None = None
         # Forecast temperature (°C) at the next departure and whether it came from
         # the "hourly" forecast or, for departures beyond it, the "daily" low.
         self.departure_forecast: float | None = None
@@ -262,8 +268,32 @@ class Preconditioner:
             start = departure - timedelta(minutes=self.settings["lead"])
             self._unsub_timer = async_track_point_in_time(self.hass, self._async_timer, start)
         self._sync_battery_plan(departure)
+        self._track_weather()
         self._refresh_forecast()
         self._notify()
+
+    @callback
+    def _track_weather(self) -> None:
+        """Fetch the forecast again whenever the weather entity changes.
+
+        Covers a weather integration that is set up after this one (forecast
+        not yet available at start) and picks up new forecasts right away.
+        """
+        entity_id = self.settings.get("weather_entity") or None
+        if entity_id == self._weather_tracked:
+            return
+        if self._unsub_weather:
+            self._unsub_weather()
+            self._unsub_weather = None
+        self._weather_tracked = entity_id
+        if entity_id:
+            self._unsub_weather = async_track_state_change_event(
+                self.hass, entity_id, self._async_weather_changed
+            )
+
+    @callback
+    def _async_weather_changed(self, _event: Event[EventStateChangedData]) -> None:
+        self._refresh_forecast()
 
     @callback
     def _async_forecast_interval(self, _now: datetime) -> None:
@@ -274,7 +304,8 @@ class Preconditioner:
         """Fetch the forecast temperature for the next departure in the background."""
         departure = self._scheduled[0] if self._scheduled else None
         entity_id = self.settings.get("weather_entity")
-        if departure is None or not entity_id:
+        if departure is None or not entity_id or self.hass.states.get(entity_id) is None:
+            # No weather entity (yet): _track_weather fetches once it appears.
             self._set_departure_forecast(None, None)
             return
 
@@ -403,6 +434,34 @@ class Preconditioner:
         if departure is not None:
             await self.async_update(skip=departure.isoformat())
 
+    def skipped_departure(self, now: datetime | None = None) -> datetime | None:
+        """The departure the user chose to skip, if it still lies ahead."""
+        skipped = dt_util.parse_datetime(self.settings["skip"] or "")
+        if skipped is None or skipped <= (now or dt_util.now()):
+            return None
+        return skipped
+
+    async def async_clear_skip(self, plan_id: str | None = None) -> None:
+        """Run the skipped departure after all.
+
+        With ``plan_id`` only if the skipped departure belongs to that plan
+        (same weekday and time), so switching one plan on does not undo a
+        skip of another.
+        """
+        skipped = self.skipped_departure()
+        if skipped is None:
+            return
+        if plan_id is not None:
+            plan = next((p for p in self._plans() if p.plan_id == plan_id), None)
+            local = dt_util.as_local(skipped)
+            if (
+                plan is None
+                or WEEKDAYS[local.weekday()] not in plan.weekdays
+                or local.time().replace(second=0, microsecond=0) != plan.time
+            ):
+                return
+        await self.async_update(skip=None)
+
     async def async_unload(self) -> None:
         if self._unsub_timer:
             self._unsub_timer()
@@ -410,6 +469,10 @@ class Preconditioner:
         if self._unsub_forecast:
             self._unsub_forecast()
             self._unsub_forecast = None
+        if self._unsub_weather:
+            self._unsub_weather()
+            self._unsub_weather = None
+            self._weather_tracked = None
 
     # ----------------------------------------------------------- execution
 

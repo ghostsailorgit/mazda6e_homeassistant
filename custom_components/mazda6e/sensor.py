@@ -14,7 +14,6 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import (
-    CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
     PERCENTAGE,
     EntityCategory,
     UnitOfElectricCurrent,
@@ -30,6 +29,13 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from .coordinator import Mazda6eConfigEntry
 from .entity import Mazda6eEntity, Mazda6ePlanEntity, plan_entities
 from .models import CHARGE_STATUS, POSITIONS, VehicleStatus
+
+try:  # HA 2026.x; the CONCENTRATION_* constant is removed in 2027.8
+    from homeassistant.const import UnitOfDensity
+
+    MICROGRAMS_PER_CUBIC_METER = UnitOfDensity.MICROGRAMS_PER_CUBIC_METER
+except ImportError:  # older Home Assistant
+    from homeassistant.const import CONCENTRATION_MICROGRAMS_PER_CUBIC_METER as MICROGRAMS_PER_CUBIC_METER
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -149,7 +155,7 @@ SENSORS: tuple[Mazda6eSensorDescription, ...] = (
         translation_key="inside_pm25",
         device_class=SensorDeviceClass.PM25,
         state_class=SensorStateClass.MEASUREMENT,
-        native_unit_of_measurement=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+        native_unit_of_measurement=MICROGRAMS_PER_CUBIC_METER,
         entity_registry_enabled_default=False,
         value_fn=lambda s: s.inside_pm25,
     ),

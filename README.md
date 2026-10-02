@@ -166,7 +166,7 @@ plan. The main switch *Pre-conditioning departure plans* turns all plans on or o
 **Display:** *Next departure* and *Next pre-conditioning start* (timestamps; the
 attributes show the plan, the last run and any failed steps) and *Forecast at
 departure* — the hourly forecast of the weather source for the next departure,
-refreshed every 30 minutes. If the departure lies beyond the hourly forecast
+refreshed every 30 minutes and whenever the weather entity changes. If the departure lies beyond the hourly forecast
 (usually ~2 days), it shows the day's forecast low instead (attribute
 `forecast_type`: `hourly` / `daily`); unknown without a weather source or forecast.
 The weather gate itself always uses the hourly forecast.
@@ -178,7 +178,9 @@ The weather gate itself always uses the hourly forecast.
 > updated. Requires Home Assistant 2025.4 or newer.
 
 **Buttons:** *Start pre-conditioning* / *stop* (immediately, with the profile) and
-*Skip next departure* (e.g. public holiday, working from home).
+*Skip next departure* (e.g. public holiday, working from home). To undo a skip, press
+*Undo skip* (only available while a departure is skipped) or switch the plan of the
+skipped departure — or all departure plans — off and on again.
 
 ### External triggers (automations)
 

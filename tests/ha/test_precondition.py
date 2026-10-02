@@ -146,6 +146,42 @@ async def test_next_departure_over_plans_and_skip(hass: HomeAssistant, client, f
     assert _next_departure(hass) == _local(2026, 10, 8, 16, 30)
 
 
+async def test_undo_skip(hass: HomeAssistant, client, freezer) -> None:
+    freezer.move_to(_local(2026, 10, 5, 6, 0))  # Monday 06:00
+    await _setup(
+        hass,
+        _plan("work", "Work", "07:30", WEEKDAYS_MON_FRI),
+        _plan("gym", "Gym", "17:00", ["mon"], enabled=False),
+    )
+    undo = "button.mazda_6e_undo_skip"
+    skip = "button.mazda_6e_skip_next_departure"
+    await _call(hass, "switch", "turn_on", MASTER)
+    assert hass.states.get(undo).state == "unavailable"  # nothing skipped
+
+    # undo button
+    await _call(hass, "button", "press", skip)
+    assert _next_departure(hass) == _local(2026, 10, 6, 7, 30)
+    assert hass.states.get(undo).state != "unavailable"
+    await _call(hass, "button", "press", undo)
+    assert _next_departure(hass) == _local(2026, 10, 5, 7, 30)
+    assert hass.states.get(undo).state == "unavailable"
+
+    # switching another plan on keeps the skip; switching its own plan on again undoes it
+    await _call(hass, "button", "press", skip)
+    await _call(hass, "switch", "turn_on", "switch.mazda_6e_gym_departure_plan")
+    assert _next_departure(hass) == _local(2026, 10, 5, 17, 0)  # Work skipped, Gym next
+    await _call(hass, "switch", "turn_off", "switch.mazda_6e_gym_departure_plan")
+    await _call(hass, "switch", "turn_off", "switch.mazda_6e_work_departure_plan")
+    await _call(hass, "switch", "turn_on", "switch.mazda_6e_work_departure_plan")
+    assert _next_departure(hass) == _local(2026, 10, 5, 7, 30)
+
+    # switching all plans on again undoes it too
+    await _call(hass, "button", "press", skip)
+    await _call(hass, "switch", "turn_off", MASTER)
+    await _call(hass, "switch", "turn_on", MASTER)
+    assert _next_departure(hass) == _local(2026, 10, 5, 7, 30)
+
+
 async def test_schedule_runs_each_plan_with_its_temperature(hass: HomeAssistant, client, freezer) -> None:
     freezer.move_to(_local(2026, 10, 5, 6, 0))
     await _setup(
@@ -415,6 +451,27 @@ async def test_forecast_at_next_departure(hass: HomeAssistant, client, freezer) 
     state = hass.states.get(sensor)
     assert state.state == "unknown"
     assert state.attributes["forecast_type"] is None
+
+
+async def test_forecast_follows_late_weather_entity(hass: HomeAssistant, client, freezer) -> None:
+    """A weather integration that starts after us still gets the forecast shown."""
+    freezer.move_to(_local(2026, 10, 5, 6, 0))
+    await _setup(hass, _plan("work", "Work", "07:30", WEEKDAYS_MON_FRI))
+    sensor = "sensor.mazda_6e_forecast_at_departure"
+    hass.states.async_set("weather.test", "cloudy")
+    await _call(hass, "select", "select_option", "select.mazda_6e_pre_conditioning_weather_source", option="weather.test")
+    await _call(hass, "switch", "turn_on", MASTER)
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert hass.states.get(sensor).state == "unknown"  # weather service not there yet
+
+    async def get_forecasts(call: ServiceCall):
+        hourly = [{"datetime": _local(2026, 10, 5, 7, 0).isoformat(), "temperature": 2.5}]
+        return {"weather.test": {"forecast": hourly}}
+
+    hass.services.async_register("weather", "get_forecasts", get_forecasts, supports_response=SupportsResponse.ONLY)
+    hass.states.async_set("weather.test", "snowy")
+    await hass.async_block_till_done(wait_background_tasks=True)
+    assert float(hass.states.get(sensor).state) == 2.5
 
 
 async def test_plan_button_reports_failed_steps(hass: HomeAssistant, client) -> None:

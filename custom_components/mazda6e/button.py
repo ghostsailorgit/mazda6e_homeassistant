@@ -77,6 +77,12 @@ PLAN_BUTTONS: tuple[Mazda6ePlanButtonDescription, ...] = (
         icon="mdi:skip-next",
         press_fn=lambda p: p.async_skip_next(),
     ),
+    Mazda6ePlanButtonDescription(
+        key="precondition_unskip",
+        translation_key="precondition_unskip",
+        icon="mdi:undo-variant",
+        press_fn=lambda p: p.async_clear_skip(),
+    ),
 )
 
 
@@ -119,6 +125,13 @@ class Mazda6eButton(Mazda6eControlEntity, ButtonEntity):
 
 class Mazda6ePlanButton(Mazda6ePlanEntity, ButtonEntity):
     entity_description: Mazda6ePlanButtonDescription
+
+    @property
+    def available(self) -> bool:
+        if self.entity_description.key == "precondition_unskip":
+            # Only offered while a departure is skipped (dashboards can hide it).
+            return self.preconditioner.skipped_departure() is not None
+        return super().available
 
     async def async_press(self) -> None:
         failed = await self.entity_description.press_fn(self.preconditioner)

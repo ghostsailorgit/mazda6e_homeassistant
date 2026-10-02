@@ -170,7 +170,7 @@ schaltet alle Pläne ein oder aus.
 **Anzeige:** *Nächste Abfahrt* und *Nächster Vorklimatisierungsstart* (Zeitstempel; die
 Attribute zeigen den Plan, den letzten Lauf und fehlgeschlagene Schritte) sowie
 *Temperatur bei Abfahrt* – die stündliche Vorhersage der Wetterquelle für die nächste
-Abfahrt, alle 30 Minuten aktualisiert. Liegt die Abfahrt jenseits der
+Abfahrt, alle 30 Minuten und bei jeder Änderung der Wetter-Entität aktualisiert. Liegt die Abfahrt jenseits der
 Stundenvorhersage (meist ~2 Tage), zeigt er den vorhergesagten Tiefstwert des Tages
 (Attribut `forecast_type`: `hourly` / `daily`); unbekannt ohne Wetterquelle oder
 Vorhersage. Die Wetterbedingung fürs Vorheizen nutzt immer die Stundenvorhersage.
@@ -182,7 +182,10 @@ Vorhersage. Die Wetterbedingung fürs Vorheizen nutzt immer die Stundenvorhersag
 > angepasst werden. Benötigt Home Assistant 2025.4 oder neuer.
 
 **Knöpfe:** *Vorklimatisierung starten* / *stoppen* (sofort, mit dem Profil) und
-*Nächste Abfahrt überspringen* (z. B. Feiertag, Homeoffice).
+*Nächste Abfahrt überspringen* (z. B. Feiertag, Homeoffice). Rückgängig machen per
+*Überspringen aufheben* (nur verfügbar, solange eine Abfahrt übersprungen ist) oder
+indem du den Plan der übersprungenen Abfahrt – oder alle Abfahrtspläne – aus- und
+wieder einschaltest.
 
 ### Externe Trigger (Automationen)
 

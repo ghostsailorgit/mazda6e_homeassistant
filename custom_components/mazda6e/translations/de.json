@@ -287,6 +287,9 @@
       },
       "precondition_skip": {
         "name": "Nächste Abfahrt überspringen"
+      },
+      "precondition_unskip": {
+        "name": "Überspringen aufheben"
       }
     },
     "number": {
