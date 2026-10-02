@@ -223,6 +223,7 @@ wieder einschaltest.
 | `mazda6e.start_preconditioning` | jetzt vorklimatisieren; optional `temperature`, `duration`, `seat_heat` (0–3), `steering_wheel`, `defrost`, `battery` – leere Felder nehmen das Profil |
 | `mazda6e.stop_preconditioning` | Klima, Sitz-/Lenkradheizung und Enteisen aus |
 | `mazda6e.skip_next_departure` | nächste Abfahrt der Abfahrtspläne auslassen |
+| `mazda6e.send_raw_command` | Diagnose, nur für Admins: sendet einen beliebigen signierten Fernbefehl (`control`, z. B. `windows`, und `params`) und liefert die Antwort des Autos – um Parameter der App herauszufinden. Das Auto führt ihn wirklich aus |
 
 `device_id` ist nur bei mehreren Autos nötig. `start_preconditioning` liefert als Antwort
 die fehlgeschlagenen Schritte (`failed`). Jeder Lauf löst das Event

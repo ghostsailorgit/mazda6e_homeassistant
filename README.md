@@ -217,6 +217,7 @@ skipped departure — or all departure plans — off and on again.
 | `mazda6e.start_preconditioning` | pre-condition now; optional `temperature`, `duration`, `seat_heat` (0–3), `steering_wheel`, `defrost`, `battery` — empty fields use the profile |
 | `mazda6e.stop_preconditioning` | turns off climate, seat/steering wheel heating, and defrost |
 | `mazda6e.skip_next_departure` | skip the next departure of the departure plans |
+| `mazda6e.send_raw_command` | diagnostics, admins only: sends any signed remote command (`control`, e.g. `windows`, and `params`) and returns the car's answer — for finding out parameters the app uses. The car really executes it |
 
 `device_id` is only needed with multiple cars. `start_preconditioning` returns the
 failed steps (`failed`) in its response. Every run fires the `mazda6e_preconditioning`

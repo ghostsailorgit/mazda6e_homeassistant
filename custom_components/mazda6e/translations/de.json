@@ -512,6 +512,28 @@
           "description": "Nur nötig bei mehreren Autos."
         }
       }
+    },
+    "send_raw_command": {
+      "name": "Rohbefehl senden (Diagnose)",
+      "description": "Um herauszufinden, wie die App das Auto steuert: sendet einen signierten Fernbefehl an cma-app-car-control/api/control/<control> und liefert die Antwort des Autos. Das Auto führt ihn wirklich aus. Nur für Admins.",
+      "fields": {
+        "device_id": {
+          "name": "Auto",
+          "description": "Nur nötig bei mehreren Autos."
+        },
+        "control": {
+          "name": "Steuer-Endpunkt",
+          "description": "Letzter Teil des Endpunkts, z. B. windows, trunk, doors."
+        },
+        "params": {
+          "name": "Parameter",
+          "description": "Request-Body ohne vehicleId, rcToken, Seriennummer und Signatur (werden automatisch ergänzt)."
+        },
+        "needs_pin": {
+          "name": "Braucht Steuer-PIN",
+          "description": "Vorher mit der gespeicherten Steuer-PIN ein rcToken holen."
+        }
+      }
     }
   }
 }

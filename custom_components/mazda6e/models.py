@@ -26,8 +26,12 @@ CHARGE_STATUS = {
 VEHICLE_STATE = {1: "driving", 2: "parked"}
 POWER_STATE = {0: "off", 1: "accessory", 2: "on"}
 
-# Position order of the "doors" / "windows" arrays in the condition response.
+# Position order of the "doors" array in the condition response.
 POSITIONS = ("front_left", "front_right", "rear_left", "rear_right")
+# The "windows" / "openDegree" arrays list the rear windows first: on a Mazda
+# 6e (EU) the ventilation command moved only the front windows and the car
+# reported positions 3 and 4 as open.
+WINDOW_POSITIONS = ("rear_left", "rear_right", "front_left", "front_right")
 
 
 @dataclass
@@ -262,7 +266,7 @@ class VehicleStatus:
                 pos: _flag(_index(door.get("doors"), i)) for i, pos in enumerate(POSITIONS)
             },
             windows_open={
-                pos: _flag(_index(window.get("windows"), i)) for i, pos in enumerate(POSITIONS)
+                pos: _flag(_index(window.get("windows"), i)) for i, pos in enumerate(WINDOW_POSITIONS)
             },
             trunk_open=_flag(door.get("trunk")),
             hood_open=_flag(door.get("hood")),

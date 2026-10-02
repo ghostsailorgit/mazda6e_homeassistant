@@ -432,6 +432,11 @@ def test_commands_without_pin(control, call, path, params, serial_type):
     [
         (lambda c: c.set_windows("42", True), "control/windows", {"command": "window", "open": True}),
         (lambda c: c.set_trunk("42", False), "control/trunk", {"command": "trunk", "open": False}),
+        (
+            lambda c: c.send_raw_command("42", "windows", {"open": True, "openDegree": 100}),
+            "control/windows",
+            {"open": True, "openDegree": 100},
+        ),
     ],
 )
 def test_commands_with_pin(control, call, path, params):
@@ -448,6 +453,13 @@ def test_commands_with_pin(control, call, path, params):
         body.pop(key)
     assert body == params
     assert backend.command_paths == [path]
+
+
+@pytest.mark.parametrize("control_name", ["", "../auth/login", "windows?x=1", "a b"])
+def test_raw_command_stays_on_control_endpoints(control_name):
+    client = api_mod.Mazda6eClient.__new__(api_mod.Mazda6eClient)
+    with pytest.raises(ValueError):
+        asyncio.run(client.send_raw_command("42", control_name, {}))
 
 
 def test_battery_preheat_plan(control):

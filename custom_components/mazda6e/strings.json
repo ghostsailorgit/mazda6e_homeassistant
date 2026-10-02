@@ -512,6 +512,28 @@
           "description": "Only needed with more than one car."
         }
       }
+    },
+    "send_raw_command": {
+      "name": "Send raw command (diagnostics)",
+      "description": "For finding out how the app controls the car: sends a signed remote command to cma-app-car-control/api/control/<control> and returns the car's answer. The car really executes it. Admins only.",
+      "fields": {
+        "device_id": {
+          "name": "Car",
+          "description": "Only needed with more than one car."
+        },
+        "control": {
+          "name": "Control endpoint",
+          "description": "Last part of the endpoint, e.g. windows, trunk, doors."
+        },
+        "params": {
+          "name": "Parameters",
+          "description": "Request body without vehicleId, rcToken, serial and signature (added automatically)."
+        },
+        "needs_pin": {
+          "name": "Needs control PIN",
+          "description": "Fetch an rcToken with the stored control PIN first."
+        }
+      }
     }
   }
 }
