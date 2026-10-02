@@ -8,31 +8,58 @@ offiziellen App **„MAZDA 6e & CX-6e“** abruft und in Home Assistant anzeigt.
 > Inoffiziell, nicht von Mazda unterstützt. Die API ist nicht dokumentiert und kann
 > sich jederzeit ändern.
 
-## Hintergrund (Recherche)
+## Kompatibilität
 
-Der Mazda 6e basiert auf einer Plattform von Changan (Deepal SL03). Die App spricht
-deshalb **nicht** mit dem alten MyMazda-Backend (das von `pymazda` genutzt wurde),
-sondern mit Changans „CMA“-Gateway:
-
-| Region | Basis-URL |
+| | |
 | --- | --- |
-| Europa | `https://cma-m.iov.changanauto.com.de/cma-app-gw` |
-| Asien/Pazifik | `https://cma.iov.changanauto.sg/cma-app-gw` |
+| Getestet | Mazda 6e, Region Europa, Home Assistant 2026.9 |
+| Sollte funktionieren, noch ungetestet | Mazda CX-6e (gleiche App und Cloud), Region Asien/Pazifik |
+| Voraussetzungen | Home Assistant 2025.4 oder neuer, ein Konto für die App „MAZDA 6e & CX-6e“ |
 
-Ablauf wie in der App:
+Wenn du einen CX-6e fährst oder die Region Asien/Pazifik nutzt, eröffne bitte ein
+[Issue](https://github.com/ghostsailorgit/mazda6e_homeassistant/issues/new/choose)
+mit dem Diagnose-Download – auch wenn alles funktioniert, damit diese Tabelle
+aktualisiert werden kann.
 
-1. `cma-app-auth/api/login/email-pass-in/v2` – E-Mail und Passwort werden mit einem
-   in der App eingebetteten RSA-Schlüssel verschlüsselt; zusätzlich wird ein
-   eigener öffentlicher Schlüssel (`pubKey`) registriert.
-2. Bei einem neuen Gerät (`emailVerify: true`) schickt Mazda einen Code per E-Mail
-   (`send-email/device-login/send`), der mit `login-device/email-verify` bestätigt wird.
-3. Fahrzeugliste: `cma-app-user/api/car/vehicles` (bzw. `vehicle/vehicles`)
-4. Status: `cma-app-car-condition/api/vehicle/condition/v2`
-5. Token-Erneuerung: `cma-app-auth/api/auth/refresh-token`
+## Installation
 
-Die Protokolldetails stammen aus den bestehenden Community-Projekten
-[fano0001/home-assistant-mazda-6e](https://github.com/fano0001/home-assistant-mazda-6e) (Apache-2.0)
-und [Sunek0/ha-mazda-6e-cx6](https://github.com/Sunek0/ha-mazda-6e-cx6) (MIT).
+### HACS (benutzerdefiniertes Repository)
+
+1. HACS → Integrationen → ⋮ → *Benutzerdefinierte Repositories* →
+   `https://github.com/ghostsailorgit/mazda6e_homeassistant`, Kategorie *Integration*.
+2. „Mazda 6e“ installieren, Home Assistant neu starten.
+
+Sobald die Integration in die HACS-Standardliste aufgenommen ist, entfällt
+Schritt 1: einfach in HACS nach „Mazda 6e“ suchen.
+
+### Manuell
+
+Ordner `custom_components/mazda6e` nach `<config>/custom_components/` kopieren und
+Home Assistant neu starten.
+
+## Einrichtung
+
+*Einstellungen → Geräte & Dienste → Integration hinzufügen → Mazda 6e*
+
+1. E-Mail, Passwort und Region eingeben (dieselben Daten wie in der App).
+2. Mazda schickt einen **Bestätigungscode per E-Mail** – diesen eingeben.
+
+Das Passwort wird nicht gespeichert, nur die Tokens und der Steuerschlüssel. Unter *Konfigurieren* lässt sich
+das Abfrageintervall (Standard: 5 Minuten) einstellen.
+
+> Mazda erlaubt pro Konto nur eine aktive Anmeldung: Meldet sich Home Assistant an,
+> wird die App auf dem Handy abgemeldet (und umgekehrt). Abhilfe schafft ein
+> **Zweitkonto nur für Home Assistant**:
+>
+> 1. In der App ein neues Konto mit einer anderen E-Mail-Adresse anlegen.
+> 2. Mit dem Hauptkonto das Fahrzeug öffnen, auf *Teilen* tippen und das neue
+>    Konto einladen.
+> 3. Mit dem neuen Konto in der App anmelden und die Fahrzeugfreigabe annehmen.
+> 4. Im neuen Konto eine eigene Steuer-PIN anlegen (z. B. beim Versuch, ein
+>    Fenster zu öffnen – die App fragt dann danach). Die PIN gehört zum Konto,
+>    das Hauptkonto-PIN gilt nicht für das Zweitkonto.
+> 5. In der App wieder zum Hauptkonto wechseln. Ab jetzt nutzt nur noch Home
+>    Assistant das Zweitkonto.
 
 ## Was angezeigt wird
 
@@ -256,54 +283,6 @@ automation:
           message: "Vorklimatisierung: fehlgeschlagen {{ trigger.event.data.failed | join(', ') }}"
 ```
 
-### Protokoll-Unsicherheiten
-
-Die beiden Referenzprojekte unterscheiden sich an einigen Stellen; umgesetzt ist jeweils:
-
-- Hupen/Blinken: `type` 1 = nur Licht, 3 = Licht + Hupe (laut Sunek0; fano nutzt 1 für
-  „Auto finden“) – daher zwei Knöpfe
-- Fenster: mit `openType: 10` (Sunek0)
-- Signatur: ohne leeres `rcToken` bei Befehlen ohne PIN
-
-Falls etwas davon am echten Auto nicht klappt, bitte mit Debug-Log melden.
-
-## Installation
-
-### HACS (benutzerdefiniertes Repository)
-
-1. HACS → Integrationen → ⋮ → *Benutzerdefinierte Repositories* →
-   `https://github.com/ghostsailorgit/mazda6e_homeassistant`, Kategorie *Integration*.
-2. „Mazda 6e“ installieren, Home Assistant neu starten.
-
-### Manuell
-
-Ordner `custom_components/mazda6e` nach `<config>/custom_components/` kopieren und
-Home Assistant neu starten.
-
-## Einrichtung
-
-*Einstellungen → Geräte & Dienste → Integration hinzufügen → Mazda 6e*
-
-1. E-Mail, Passwort und Region eingeben (dieselben Daten wie in der App).
-2. Mazda schickt einen **Bestätigungscode per E-Mail** – diesen eingeben.
-
-Das Passwort wird nicht gespeichert, nur die Tokens und der Steuerschlüssel. Unter *Konfigurieren* lässt sich
-das Abfrageintervall (Standard: 5 Minuten) einstellen.
-
-> Mazda erlaubt pro Konto nur eine aktive Anmeldung: Meldet sich Home Assistant an,
-> wird die App auf dem Handy abgemeldet (und umgekehrt). Abhilfe schafft ein
-> **Zweitkonto nur für Home Assistant**:
->
-> 1. In der App ein neues Konto mit einer anderen E-Mail-Adresse anlegen.
-> 2. Mit dem Hauptkonto das Fahrzeug öffnen, auf *Teilen* tippen und das neue
->    Konto einladen.
-> 3. Mit dem neuen Konto in der App anmelden und die Fahrzeugfreigabe annehmen.
-> 4. Im neuen Konto eine eigene Steuer-PIN anlegen (z. B. beim Versuch, ein
->    Fenster zu öffnen – die App fragt dann danach). Die PIN gehört zum Konto,
->    das Hauptkonto-PIN gilt nicht für das Zweitkonto.
-> 5. In der App wieder zum Hauptkonto wechseln. Ab jetzt nutzt nur noch Home
->    Assistant das Zweitkonto.
-
 ## Account ohne Home Assistant testen
 
 ```bash
@@ -336,6 +315,45 @@ meldet App bzw. Home Assistant ab, wenn sie dasselbe Konto nutzen.
 - *Diagnose herunterladen* auf der Integrationsseite liefert die Rohdaten des
   Fahrzeugs (VIN und Tokens werden geschwärzt). Damit lassen sich unbekannte
   Felder zuordnen.
+- Kommst du nicht weiter? [Eröffne ein Issue](https://github.com/ghostsailorgit/mazda6e_homeassistant/issues/new/choose)
+  mit der Diagnose-Datei – poste nie Passwort, PIN oder Tokens.
+
+## Hintergrund (Recherche)
+
+Der Mazda 6e basiert auf einer Plattform von Changan (Deepal SL03). Die App spricht
+deshalb **nicht** mit dem alten MyMazda-Backend (das von `pymazda` genutzt wurde),
+sondern mit Changans „CMA“-Gateway:
+
+| Region | Basis-URL |
+| --- | --- |
+| Europa | `https://cma-m.iov.changanauto.com.de/cma-app-gw` |
+| Asien/Pazifik | `https://cma.iov.changanauto.sg/cma-app-gw` |
+
+Ablauf wie in der App:
+
+1. `cma-app-auth/api/login/email-pass-in/v2` – E-Mail und Passwort werden mit einem
+   in der App eingebetteten RSA-Schlüssel verschlüsselt; zusätzlich wird ein
+   eigener öffentlicher Schlüssel (`pubKey`) registriert.
+2. Bei einem neuen Gerät (`emailVerify: true`) schickt Mazda einen Code per E-Mail
+   (`send-email/device-login/send`), der mit `login-device/email-verify` bestätigt wird.
+3. Fahrzeugliste: `cma-app-user/api/car/vehicles` (bzw. `vehicle/vehicles`)
+4. Status: `cma-app-car-condition/api/vehicle/condition/v2`
+5. Token-Erneuerung: `cma-app-auth/api/auth/refresh-token`
+
+Die Protokolldetails stammen aus den bestehenden Community-Projekten
+[fano0001/home-assistant-mazda-6e](https://github.com/fano0001/home-assistant-mazda-6e) (Apache-2.0)
+und [Sunek0/ha-mazda-6e-cx6](https://github.com/Sunek0/ha-mazda-6e-cx6) (MIT).
+
+### Protokoll-Unsicherheiten
+
+Die beiden Referenzprojekte unterscheiden sich an einigen Stellen; umgesetzt ist jeweils:
+
+- Hupen/Blinken: `type` 1 = nur Licht, 3 = Licht + Hupe (laut Sunek0; fano nutzt 1 für
+  „Auto finden“) – daher zwei Knöpfe
+- Fenster: mit `openType: 10` (Sunek0)
+- Signatur: ohne leeres `rcToken` bei Befehlen ohne PIN
+
+Falls etwas davon am echten Auto nicht klappt, bitte mit Debug-Log melden.
 
 ## Entwicklung
 

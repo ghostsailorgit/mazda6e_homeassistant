@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Home Assistant community forum
+    url: https://community.home-assistant.io/
+    about: General questions about Home Assistant, dashboards or automations

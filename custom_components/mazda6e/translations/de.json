@@ -188,7 +188,22 @@
         "name": "Nächster Vorklimatisierungsstart"
       },
       "precondition_departure_temperature": {
-        "name": "Temperatur bei Abfahrt"
+        "name": "Temperatur bei Abfahrt",
+        "state_attributes": {
+          "forecast_type": {
+            "name": "Vorhersage",
+            "state": {
+              "hourly": "Stundenwert",
+              "daily": "Tagestiefstwert"
+            }
+          },
+          "plan": {
+            "name": "Plan"
+          },
+          "departure": {
+            "name": "Abfahrt"
+          }
+        }
       }
     },
     "binary_sensor": {
