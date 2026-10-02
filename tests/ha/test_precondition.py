@@ -146,6 +146,42 @@ async def test_next_departure_over_plans_and_skip(hass: HomeAssistant, client, f
     assert _next_departure(hass) == _local(2026, 10, 8, 16, 30)
 
 
+async def test_undo_skip(hass: HomeAssistant, client, freezer) -> None:
+    freezer.move_to(_local(2026, 10, 5, 6, 0))  # Monday 06:00
+    await _setup(
+        hass,
+        _plan("work", "Work", "07:30", WEEKDAYS_MON_FRI),
+        _plan("gym", "Gym", "17:00", ["mon"], enabled=False),
+    )
+    undo = "button.mazda_6e_undo_skip"
+    skip = "button.mazda_6e_skip_next_departure"
+    await _call(hass, "switch", "turn_on", MASTER)
+    assert hass.states.get(undo).state == "unavailable"  # nothing skipped
+
+    # undo button
+    await _call(hass, "button", "press", skip)
+    assert _next_departure(hass) == _local(2026, 10, 6, 7, 30)
+    assert hass.states.get(undo).state != "unavailable"
+    await _call(hass, "button", "press", undo)
+    assert _next_departure(hass) == _local(2026, 10, 5, 7, 30)
+    assert hass.states.get(undo).state == "unavailable"
+
+    # switching another plan on keeps the skip; switching its own plan on again undoes it
+    await _call(hass, "button", "press", skip)
+    await _call(hass, "switch", "turn_on", "switch.mazda_6e_gym_departure_plan")
+    assert _next_departure(hass) == _local(2026, 10, 5, 17, 0)  # Work skipped, Gym next
+    await _call(hass, "switch", "turn_off", "switch.mazda_6e_gym_departure_plan")
+    await _call(hass, "switch", "turn_off", "switch.mazda_6e_work_departure_plan")
+    await _call(hass, "switch", "turn_on", "switch.mazda_6e_work_departure_plan")
+    assert _next_departure(hass) == _local(2026, 10, 5, 7, 30)
+
+    # switching all plans on again undoes it too
+    await _call(hass, "button", "press", skip)
+    await _call(hass, "switch", "turn_off", MASTER)
+    await _call(hass, "switch", "turn_on", MASTER)
+    assert _next_departure(hass) == _local(2026, 10, 5, 7, 30)
+
+
 async def test_schedule_runs_each_plan_with_its_temperature(hass: HomeAssistant, client, freezer) -> None:
     freezer.move_to(_local(2026, 10, 5, 6, 0))
     await _setup(

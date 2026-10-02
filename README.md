@@ -178,7 +178,9 @@ The weather gate itself always uses the hourly forecast.
 > updated. Requires Home Assistant 2025.4 or newer.
 
 **Buttons:** *Start pre-conditioning* / *stop* (immediately, with the profile) and
-*Skip next departure* (e.g. public holiday, working from home).
+*Skip next departure* (e.g. public holiday, working from home). To undo a skip, press
+*Undo skip* (only available while a departure is skipped) or switch the plan of the
+skipped departure — or all departure plans — off and on again.
 
 ### External triggers (automations)
 

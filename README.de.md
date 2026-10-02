@@ -182,7 +182,10 @@ Vorhersage. Die Wetterbedingung fürs Vorheizen nutzt immer die Stundenvorhersag
 > angepasst werden. Benötigt Home Assistant 2025.4 oder neuer.
 
 **Knöpfe:** *Vorklimatisierung starten* / *stoppen* (sofort, mit dem Profil) und
-*Nächste Abfahrt überspringen* (z. B. Feiertag, Homeoffice).
+*Nächste Abfahrt überspringen* (z. B. Feiertag, Homeoffice). Rückgängig machen per
+*Überspringen aufheben* (nur verfügbar, solange eine Abfahrt übersprungen ist) oder
+indem du den Plan der übersprungenen Abfahrt – oder alle Abfahrtspläne – aus- und
+wieder einschaltest.
 
 ### Externe Trigger (Automationen)
 

@@ -434,6 +434,34 @@ class Preconditioner:
         if departure is not None:
             await self.async_update(skip=departure.isoformat())
 
+    def skipped_departure(self, now: datetime | None = None) -> datetime | None:
+        """The departure the user chose to skip, if it still lies ahead."""
+        skipped = dt_util.parse_datetime(self.settings["skip"] or "")
+        if skipped is None or skipped <= (now or dt_util.now()):
+            return None
+        return skipped
+
+    async def async_clear_skip(self, plan_id: str | None = None) -> None:
+        """Run the skipped departure after all.
+
+        With ``plan_id`` only if the skipped departure belongs to that plan
+        (same weekday and time), so switching one plan on does not undo a
+        skip of another.
+        """
+        skipped = self.skipped_departure()
+        if skipped is None:
+            return
+        if plan_id is not None:
+            plan = next((p for p in self._plans() if p.plan_id == plan_id), None)
+            local = dt_util.as_local(skipped)
+            if (
+                plan is None
+                or WEEKDAYS[local.weekday()] not in plan.weekdays
+                or local.time().replace(second=0, microsecond=0) != plan.time
+            ):
+                return
+        await self.async_update(skip=None)
+
     async def async_unload(self) -> None:
         if self._unsub_timer:
             self._unsub_timer()
