@@ -140,9 +140,9 @@ briefly unreachable.
 **Departure plans:** *Settings → Devices & Services → Mazda 6e → Add departure plan*.
 Each plan has a name, a departure time, the weekdays it applies to and its own
 temperature — e.g. "Work, 07:30, Mon–Fri, 21 °C" and "Gym, 17:00, Tue+Thu, 19 °C".
-Several plans may fall on the same day. Each plan gets three entities for the
-dashboard: a switch (*Departure plan Work*), its time (*Departure Work*) and its
-temperature (*Temperature Work*); the weekdays are changed with *Reconfigure* on the
+Several plans may fall on the same day. Each plan is its own device below the car
+(e.g. *Mazda 6e Work*) with three entities for the dashboard: *Departure plan* (on/off),
+*Departure time* and *Temperature*; the weekdays are changed with *Reconfigure* on the
 plan. The main switch *Pre-conditioning departure plans* turns all plans on or off.
 
 **Profile** (shared by all plans, under *Configure* on the device):

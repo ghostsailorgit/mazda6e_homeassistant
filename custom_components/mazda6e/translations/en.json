@@ -300,7 +300,7 @@
         "name": "Pre-conditioning: minimum temperature"
       },
       "departure_plan_temperature": {
-        "name": "Temperature {plan}"
+        "name": "Temperature"
       }
     },
     "switch": {
@@ -329,7 +329,7 @@
         "name": "Pre-conditioning: battery preheating"
       },
       "departure_plan": {
-        "name": "Departure plan {plan}"
+        "name": "Departure plan"
       }
     },
     "time": {
@@ -343,7 +343,7 @@
         "name": "Charging schedule end"
       },
       "departure_plan_time": {
-        "name": "Departure {plan}"
+        "name": "Departure time"
       }
     },
     "select": {

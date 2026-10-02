@@ -144,10 +144,10 @@ Cloud kurz nicht erreichbar ist.
 **Abfahrtspläne:** *Einstellungen → Geräte & Dienste → Mazda 6e → Abfahrtsplan
 hinzufügen*. Jeder Plan hat einen Namen, eine Abfahrtszeit, die Wochentage und eine
 eigene Temperatur – z. B. „Arbeit, 07:30, Mo–Fr, 21 °C" und „Training, 17:00, Di+Do,
-19 °C". Mehrere Pläne am selben Tag sind möglich. Pro Plan gibt es drei Entitäten
-fürs Dashboard: einen Schalter (*Abfahrtsplan Arbeit*), die Uhrzeit (*Abfahrt
-Arbeit*) und die Temperatur (*Temperatur Arbeit*); die Wochentage ändert man über
-*Neu konfigurieren* am Plan. Der Hauptschalter *Vorklimatisierung Abfahrtspläne*
+19 °C". Mehrere Pläne am selben Tag sind möglich. Jeder Plan ist ein eigenes Gerät
+unterhalb des Autos (z. B. *Mazda 6e Arbeit*) mit drei Entitäten fürs Dashboard:
+*Abfahrtsplan* (an/aus), *Abfahrtszeit* und *Temperatur*; die Wochentage ändert man
+über *Neu konfigurieren* am Plan. Der Hauptschalter *Vorklimatisierung Abfahrtspläne*
 schaltet alle Pläne ein oder aus.
 
 **Profil** (für alle Pläne gemeinsam, unter *Konfiguration* am Gerät):

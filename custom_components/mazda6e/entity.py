@@ -8,7 +8,7 @@ from typing import Any
 
 from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity import EntityDescription
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -17,8 +17,18 @@ from homeassistant.util import dt as dt_util
 from .api import MazdaAuthError, MazdaError, MazdaPinError
 from .const import CONF_CONTROL_PRIVATE_KEY, DOMAIN, PLAN_VEHICLE, SUBENTRY_PLAN
 from .coordinator import Mazda6eConfigEntry, Mazda6eCoordinator, VehicleData
-from .models import VehicleStatus
+from .models import Vehicle, VehicleStatus
 from .precondition import Preconditioner
+
+
+def car_device_info(vehicle: Vehicle) -> DeviceInfo:
+    return DeviceInfo(
+        identifiers={(DOMAIN, vehicle.vin)},
+        manufacturer="Mazda",
+        model=vehicle.model_name or vehicle.series_name or "6e",
+        name=vehicle.display_name,
+        serial_number=vehicle.vin,
+    )
 
 
 class Mazda6eEntity(CoordinatorEntity[Mazda6eCoordinator]):
@@ -35,13 +45,7 @@ class Mazda6eEntity(CoordinatorEntity[Mazda6eCoordinator]):
         self._vehicle_id = vehicle_id
         vehicle = coordinator.data[vehicle_id].vehicle
         self._attr_unique_id = f"{vehicle.vin}_{description.key}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, vehicle.vin)},
-            manufacturer="Mazda",
-            model=vehicle.model_name or vehicle.series_name or "6e",
-            name=vehicle.display_name,
-            serial_number=vehicle.vin,
-        )
+        self._attr_device_info = car_device_info(vehicle)
 
     @property
     def _data(self) -> VehicleData | None:
@@ -181,9 +185,18 @@ class Mazda6eDeparturePlanEntity(Mazda6ePlanEntity):
     ) -> None:
         super().__init__(coordinator, vehicle_id, description, preconditioner)
         self._subentry_id = subentry_id
-        self._attr_translation_placeholders = {
-            "plan": coordinator.config_entry.subentries[subentry_id].title
-        }
+        # A device belongs to one subentry, so each plan is its own device
+        # hanging off the car instead of sharing the car's device.
+        vehicle = coordinator.data[vehicle_id].vehicle
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, f"{vehicle.vin}_{subentry_id}")},
+            name=f"{vehicle.display_name} {coordinator.config_entry.subentries[subentry_id].title}",
+            entry_type=DeviceEntryType.SERVICE,
+        )
+        if "via_device_id" in DeviceInfo.__annotations__:  # HA 2026.10+
+            self._attr_device_info["via_device_id"] = coordinator.car_device_ids[vehicle_id]
+        else:
+            self._attr_device_info["via_device"] = (DOMAIN, vehicle.vin)
 
     @property
     def plan_data(self) -> Mapping[str, Any]:

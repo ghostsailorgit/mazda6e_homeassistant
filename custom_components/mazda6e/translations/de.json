@@ -300,7 +300,7 @@
         "name": "Vorklimatisierung: Mindesttemperatur"
       },
       "departure_plan_temperature": {
-        "name": "Temperatur {plan}"
+        "name": "Temperatur"
       }
     },
     "switch": {
@@ -329,7 +329,7 @@
         "name": "Vorklimatisierung: Akku vorheizen"
       },
       "departure_plan": {
-        "name": "Abfahrtsplan {plan}"
+        "name": "Abfahrtsplan"
       }
     },
     "time": {
@@ -343,7 +343,7 @@
         "name": "Ladezeitplan Ende"
       },
       "departure_plan_time": {
-        "name": "Abfahrt {plan}"
+        "name": "Abfahrtszeit"
       }
     },
     "select": {

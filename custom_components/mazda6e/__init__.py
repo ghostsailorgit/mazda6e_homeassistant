@@ -9,6 +9,7 @@ from homeassistant.config_entries import ConfigSubentry
 from homeassistant.const import CONF_SCAN_INTERVAL, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.typing import ConfigType
@@ -27,6 +28,7 @@ from .const import (
     SUBENTRY_PLAN,
 )
 from .coordinator import Mazda6eConfigEntry, Mazda6eCoordinator
+from .entity import car_device_info
 from .precondition import WEEKDAYS, Preconditioner, legacy_plan_data, plans_from_entry
 from .services import async_setup_services
 
@@ -74,6 +76,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: Mazda6eConfigEntry) -> b
     await coordinator.async_config_entry_first_refresh()
 
     entry.runtime_data = coordinator
+    # Departure plan devices hang off the car's device, so it must exist first.
+    devices = dr.async_get(hass)
+    for vehicle_id, data in coordinator.data.items():
+        device = devices.async_get_or_create(config_entry_id=entry.entry_id, **car_device_info(data.vehicle))
+        coordinator.car_device_ids[vehicle_id] = device.id
     if entry.data.get(CONF_CONTROL_PRIVATE_KEY):
         for vehicle_id in coordinator.data:
             preconditioner = Preconditioner(

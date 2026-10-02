@@ -136,8 +136,8 @@ async def test_next_departure_over_plans_and_skip(hass: HomeAssistant, client, f
     assert hass.states.get("sensor.mazda_6e_next_departure").attributes["plan"] == "Work"
 
     # Work off -> Gym on Tuesday; its time can be changed on the dashboard
-    await _call(hass, "switch", "turn_off", "switch.mazda_6e_departure_plan_work")
-    await _call(hass, "time", "set_value", "time.mazda_6e_departure_gym", time="16:30")
+    await _call(hass, "switch", "turn_off", "switch.mazda_6e_work_departure_plan")
+    await _call(hass, "time", "set_value", "time.mazda_6e_gym_departure_time", time="16:30")
     assert _next_departure(hass) == _local(2026, 10, 6, 16, 30)
     assert hass.states.get("sensor.mazda_6e_next_departure").attributes["plan"] == "Gym"
 
@@ -182,17 +182,25 @@ async def test_schedule_runs_each_plan_with_its_temperature(hass: HomeAssistant,
 
 async def test_plan_entities_store_in_subentry(hass: HomeAssistant, client) -> None:
     entry = await _setup(hass, _plan("work", "Work", "07:30", WEEKDAYS_MON_FRI))
-    await _call(hass, "time", "set_value", "time.mazda_6e_departure_work", time="08:10")
-    await _call(hass, "number", "set_value", "number.mazda_6e_temperature_work", value=23.5)
-    await _call(hass, "switch", "turn_off", "switch.mazda_6e_departure_plan_work")
+    await _call(hass, "time", "set_value", "time.mazda_6e_work_departure_time", time="08:10")
+    await _call(hass, "number", "set_value", "number.mazda_6e_work_temperature", value=23.5)
+    await _call(hass, "switch", "turn_off", "switch.mazda_6e_work_departure_plan")
 
     data = entry.subentries["work"].data
     assert (data[PLAN_TIME], data[PLAN_TEMPERATURE], data[PLAN_ENABLED]) == ("08:10", 23.5, False)
-    assert hass.states.get("time.mazda_6e_departure_work").state == "08:10:00"
-    assert hass.states.get("number.mazda_6e_temperature_work").state == "23.5"
-    assert hass.states.get("switch.mazda_6e_departure_plan_work").state == "off"
-    entity = er.async_get(hass).async_get("switch.mazda_6e_departure_plan_work")
+    assert hass.states.get("time.mazda_6e_work_departure_time").state == "08:10:00"
+    assert hass.states.get("number.mazda_6e_work_temperature").state == "23.5"
+    assert hass.states.get("switch.mazda_6e_work_departure_plan").state == "off"
+
+    # each plan is its own device below the car, so the car stays outside the subentry
+    entity = er.async_get(hass).async_get("switch.mazda_6e_work_departure_plan")
     assert entity.config_subentry_id == "work"
+    devices = dr.async_get(hass)
+    plan_device = devices.async_get(entity.device_id)
+    car = devices.async_get(plan_device.via_device_id)
+    assert plan_device.name == "MAZDA 6e Work"
+    assert (DOMAIN, "VIN0001") in car.identifiers
+    assert getattr(car, "config_subentry_id", None) is None
 
 
 async def test_add_and_change_plan_in_dialog(hass: HomeAssistant, client) -> None:
@@ -217,7 +225,7 @@ async def test_add_and_change_plan_in_dialog(hass: HomeAssistant, client) -> Non
         PLAN_VEHICLE: "42",
         PLAN_ENABLED: True,
     }
-    assert hass.states.get("switch.mazda_6e_departure_plan_gym").state == "on"
+    assert hass.states.get("switch.mazda_6e_gym_departure_plan").state == "on"
 
     result = await flows.async_init(
         (entry.entry_id, SUBENTRY_PLAN), context={"source": SOURCE_RECONFIGURE, "subentry_id": subentry_id}
@@ -230,7 +238,7 @@ async def test_add_and_change_plan_in_dialog(hass: HomeAssistant, client) -> Non
     await hass.async_block_till_done()
     assert entry.subentries[subentry_id].data[PLAN_TIME] == "18:15"
     assert entry.subentries[subentry_id].data[PLAN_WEEKDAYS] == ["mon"]
-    assert hass.states.get("time.mazda_6e_departure_gym").state == "18:15:00"
+    assert hass.states.get("time.mazda_6e_gym_departure_time").state == "18:15:00"
 
 
 async def test_weekly_plan_becomes_departure_plans(hass: HomeAssistant, client, hass_storage) -> None:
@@ -257,7 +265,7 @@ async def test_weekly_plan_becomes_departure_plans(hass: HomeAssistant, client, 
     assert "days" not in hass_storage[key]["data"]
     assert registry.async_get(old.entity_id) is None
     assert hass.states.get(MASTER).state == "on"
-    assert hass.states.get("switch.mazda_6e_departure_plan_07_30").state == "on"
+    assert hass.states.get("switch.mazda_6e_07_30_departure_plan").state == "on"
 
 
 async def test_unused_weekly_plan_is_not_migrated(hass: HomeAssistant, client, hass_storage) -> None:
