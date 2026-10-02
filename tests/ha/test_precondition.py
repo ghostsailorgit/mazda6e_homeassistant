@@ -367,9 +367,13 @@ async def test_forecast_at_next_departure(hass: HomeAssistant, client, freezer) 
     sensor = "sensor.mazda_6e_forecast_at_departure"
     hours = [_local(2026, 10, 5, 6, 0) + timedelta(hours=h) for h in range(24)]
     forecast = [{"datetime": t.isoformat(), "temperature": 4.0 + i} for i, t in enumerate(hours)]
+    daily = [
+        {"datetime": _local(2026, 10, 5, 12, 0).isoformat(), "temperature": 14.0, "templow": 3.0},
+        {"datetime": _local(2026, 10, 6, 12, 0).isoformat(), "temperature": 12.0, "templow": 1.5},
+    ]
 
     async def get_forecasts(call: ServiceCall):
-        return {"weather.test": {"forecast": forecast}}
+        return {"weather.test": {"forecast": forecast if call.data["type"] == "hourly" else daily}}
 
     hass.services.async_register("weather", "get_forecasts", get_forecasts, supports_response=SupportsResponse.ONLY)
     hass.states.async_set("weather.test", "cloudy")
@@ -377,11 +381,16 @@ async def test_forecast_at_next_departure(hass: HomeAssistant, client, freezer) 
     assert hass.states.get(sensor).state == "unknown"  # no weather source chosen
 
     await _call(hass, "select", "select_option", "select.mazda_6e_pre_conditioning_weather_source", option="weather.test")
-    assert float(hass.states.get(sensor).state) == 5.0  # forecast hour 07:00, closest to 07:30
+    state = hass.states.get(sensor)
+    assert float(state.state) == 5.0  # forecast hour 07:00, closest to 07:30
+    assert state.attributes["forecast_type"] == "hourly"
+    assert state.attributes["plan"] == "Work"
 
-    # Tuesday 07:30 lies beyond the forecast: unknown rather than a far-off hour
+    # Tuesday 07:30 lies beyond the hourly forecast: the day's low instead of a far-off hour
     await _call(hass, "button", "press", "button.mazda_6e_skip_next_departure")
-    assert hass.states.get(sensor).state == "unknown"
+    state = hass.states.get(sensor)
+    assert float(state.state) == 1.5
+    assert state.attributes["forecast_type"] == "daily"
 
     # a newer forecast is fetched periodically
     forecast.extend(
@@ -390,7 +399,19 @@ async def test_forecast_at_next_departure(hass: HomeAssistant, client, freezer) 
     freezer.tick(timedelta(minutes=31))
     async_fire_time_changed(hass)
     await hass.async_block_till_done()
-    assert float(hass.states.get(sensor).state) == -3.0
+    state = hass.states.get(sensor)
+    assert float(state.state) == -3.0
+    assert state.attributes["forecast_type"] == "hourly"
+
+    # no forecast for the departure day at all
+    daily.clear()
+    forecast.clear()
+    freezer.tick(timedelta(minutes=31))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    state = hass.states.get(sensor)
+    assert state.state == "unknown"
+    assert state.attributes["forecast_type"] is None
 
 
 async def test_plan_button_reports_failed_steps(hass: HomeAssistant, client) -> None:

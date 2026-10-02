@@ -164,8 +164,10 @@ class Preconditioner:
         self._running = asyncio.Lock()
         self._scheduled: tuple[datetime, DeparturePlan] | None = None
         self._unsub_forecast: CALLBACK_TYPE | None = None
-        # Forecast temperature (°C) at the next departure; None if unknown.
+        # Forecast temperature (°C) at the next departure and whether it came from
+        # the "hourly" forecast or, for departures beyond it, the "daily" low.
         self.departure_forecast: float | None = None
+        self.departure_forecast_type: str | None = None
 
     # ------------------------------------------------------------ settings
 
@@ -269,19 +271,19 @@ class Preconditioner:
         departure = self._scheduled[0] if self._scheduled else None
         entity_id = self.settings.get("weather_entity")
         if departure is None or not entity_id:
-            if self.departure_forecast is not None:
-                self.departure_forecast = None
-                self._notify()
+            self._set_departure_forecast(None, None)
             return
 
         async def refresh() -> None:
+            forecast_type = "hourly"
             temperature = await self._async_forecast_temperature(entity_id, departure)
+            if temperature is None:
+                forecast_type = "daily"
+                temperature = await self._async_daily_low(entity_id, departure)
             current = self._scheduled[0] if self._scheduled else None
             if current != departure or self.settings.get("weather_entity") != entity_id:
                 return  # plans changed meanwhile; a newer refresh is on its way
-            if temperature != self.departure_forecast:
-                self.departure_forecast = temperature
-                self._notify()
+            self._set_departure_forecast(temperature, forecast_type if temperature is not None else None)
 
         self.hass.async_create_background_task(refresh(), f"{DOMAIN} departure forecast")
 
@@ -321,21 +323,42 @@ class Preconditioner:
             return True
         return temperature < threshold
 
-    async def _async_forecast_temperature(self, entity_id: str, when: datetime) -> float | None:
-        """Forecast temperature closest to ``when`` from an hourly forecast."""
+    @callback
+    def _set_departure_forecast(self, temperature: float | None, forecast_type: str | None) -> None:
+        if (temperature, forecast_type) != (self.departure_forecast, self.departure_forecast_type):
+            self.departure_forecast, self.departure_forecast_type = temperature, forecast_type
+            self._notify()
+
+    async def _async_forecast(self, entity_id: str, forecast_type: str) -> list[dict[str, Any]]:
+        """Forecast entries of one type; empty if the weather entity cannot deliver it."""
         try:
             response = await self.hass.services.async_call(
                 "weather",
                 "get_forecasts",
-                {"type": "hourly"},
+                {"type": forecast_type},
                 target={"entity_id": entity_id},
                 blocking=True,
                 return_response=True,
             )
         except Exception:  # noqa: BLE001 - a weather hiccup must not break the schedule loop
-            _LOGGER.warning("Could not fetch forecast from %s", entity_id, exc_info=True)
-            return None
-        forecast = ((response or {}).get(entity_id) or {}).get("forecast") or []
+            _LOGGER.warning("Could not fetch %s forecast from %s", forecast_type, entity_id, exc_info=True)
+            return []
+        return ((response or {}).get(entity_id) or {}).get("forecast") or []
+
+    async def _async_daily_low(self, entity_id: str, when: datetime) -> float | None:
+        """Lowest forecast temperature of the departure day (daily forecast)."""
+        day = dt_util.as_local(when).date()
+        for entry in await self._async_forecast(entity_id, "daily"):
+            start = dt_util.parse_datetime(entry["datetime"])
+            if start is None or dt_util.as_local(start).date() != day:
+                continue
+            temperature = entry.get("templow", entry.get("temperature"))
+            return float(temperature) if temperature is not None else None
+        return None
+
+    async def _async_forecast_temperature(self, entity_id: str, when: datetime) -> float | None:
+        """Forecast temperature closest to ``when`` from an hourly forecast."""
+        forecast = await self._async_forecast(entity_id, "hourly")
         if not forecast:
             return None
         closest = min(
