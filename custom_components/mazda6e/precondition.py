@@ -180,7 +180,7 @@ class Preconditioner:
         if isinstance(days, dict) and (stored.get("enabled") or days != LEGACY_DAYS):
             self.legacy_days = days
         self._unsub_forecast = async_track_time_interval(
-            self.hass, lambda _now: self._refresh_forecast(), FORECAST_REFRESH
+            self.hass, self._async_forecast_interval, FORECAST_REFRESH
         )
         self._schedule()
 
@@ -264,6 +264,10 @@ class Preconditioner:
         self._sync_battery_plan(departure)
         self._refresh_forecast()
         self._notify()
+
+    @callback
+    def _async_forecast_interval(self, _now: datetime) -> None:
+        self._refresh_forecast()
 
     @callback
     def _refresh_forecast(self) -> None:

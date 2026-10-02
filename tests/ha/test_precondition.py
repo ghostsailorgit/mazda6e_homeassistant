@@ -378,9 +378,11 @@ async def test_forecast_at_next_departure(hass: HomeAssistant, client, freezer) 
     hass.services.async_register("weather", "get_forecasts", get_forecasts, supports_response=SupportsResponse.ONLY)
     hass.states.async_set("weather.test", "cloudy")
     await _call(hass, "switch", "turn_on", MASTER)
+    await hass.async_block_till_done(wait_background_tasks=True)
     assert hass.states.get(sensor).state == "unknown"  # no weather source chosen
 
     await _call(hass, "select", "select_option", "select.mazda_6e_pre_conditioning_weather_source", option="weather.test")
+    await hass.async_block_till_done(wait_background_tasks=True)
     state = hass.states.get(sensor)
     assert float(state.state) == 5.0  # forecast hour 07:00, closest to 07:30
     assert state.attributes["forecast_type"] == "hourly"
@@ -388,6 +390,7 @@ async def test_forecast_at_next_departure(hass: HomeAssistant, client, freezer) 
 
     # Tuesday 07:30 lies beyond the hourly forecast: the day's low instead of a far-off hour
     await _call(hass, "button", "press", "button.mazda_6e_skip_next_departure")
+    await hass.async_block_till_done(wait_background_tasks=True)
     state = hass.states.get(sensor)
     assert float(state.state) == 1.5
     assert state.attributes["forecast_type"] == "daily"
@@ -398,7 +401,7 @@ async def test_forecast_at_next_departure(hass: HomeAssistant, client, freezer) 
     )
     freezer.tick(timedelta(minutes=31))
     async_fire_time_changed(hass)
-    await hass.async_block_till_done()
+    await hass.async_block_till_done(wait_background_tasks=True)
     state = hass.states.get(sensor)
     assert float(state.state) == -3.0
     assert state.attributes["forecast_type"] == "hourly"
@@ -408,7 +411,7 @@ async def test_forecast_at_next_departure(hass: HomeAssistant, client, freezer) 
     forecast.clear()
     freezer.tick(timedelta(minutes=31))
     async_fire_time_changed(hass)
-    await hass.async_block_till_done()
+    await hass.async_block_till_done(wait_background_tasks=True)
     state = hass.states.get(sensor)
     assert state.state == "unknown"
     assert state.attributes["forecast_type"] is None
