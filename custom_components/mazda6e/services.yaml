@@ -47,3 +47,23 @@ skip_next_departure:
       selector:
         device:
           integration: mazda6e
+
+send_raw_command:
+  fields:
+    device_id:
+      selector:
+        device:
+          integration: mazda6e
+    control:
+      required: true
+      example: windows
+      selector:
+        text:
+    params:
+      example: '{"command": "window", "open": true}'
+      selector:
+        object:
+    needs_pin:
+      default: true
+      selector:
+        boolean:

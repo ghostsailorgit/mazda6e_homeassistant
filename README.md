@@ -148,12 +148,19 @@ doesn't have (per its `function-config` feature list) are not created.
 | Slider **Set charge limit** | 60–100 % | – |
 | Select **Seat heating / seat ventilation driver & passenger** | off, level 1–3 | – |
 | Switch **Steering wheel heating**, **Defrost windscreen** | on/off | – |
-| Cover **Windows**, **Tailgate** | open/close | stored PIN required |
+| Cover **Windows ventilation**, **Tailgate** | open/close | stored PIN required |
 | Switch + time **Battery preheating (car plan)** | the preheat plan also shown in the app | – |
 | Switch + start/end **Charging schedule (car plan)** | the charging plan from the app (only if one exists) | – |
 
 Windows and the tailgate don't prompt for a PIN in Home Assistant (covers can't do
 that) — they only work with a stored control PIN, otherwise you get an error.
+
+> **Windows only open a gap.** Over Mazda's cloud the car only offers the
+> ventilation position: the front windows open to about 10 %. Opening all windows
+> fully and raising/lowering the rear spoiler only work over Bluetooth (the app's
+> digital key, function codes `#windowOpenBT` / `#SpoilerRaiseLowerBT`) — the app
+> also only opens a gap and hides the spoiler button when the phone isn't connected
+> to the car. Home Assistant cannot do this.
 
 Additional sensors: interior humidity and PM2.5, lights (low/high beam, position
 lights, turn indicators — disabled by default).
@@ -217,6 +224,7 @@ skipped departure — or all departure plans — off and on again.
 | `mazda6e.start_preconditioning` | pre-condition now; optional `temperature`, `duration`, `seat_heat` (0–3), `steering_wheel`, `defrost`, `battery` — empty fields use the profile |
 | `mazda6e.stop_preconditioning` | turns off climate, seat/steering wheel heating, and defrost |
 | `mazda6e.skip_next_departure` | skip the next departure of the departure plans |
+| `mazda6e.send_raw_command` | diagnostics, admins only: sends any signed remote command (`control`, e.g. `windows`, and `params`) and returns the car's answer — for finding out parameters the app uses. The car really executes it |
 
 `device_id` is only needed with multiple cars. `start_preconditioning` returns the
 failed steps (`failed`) in its response. Every run fires the `mazda6e_preconditioning`
@@ -296,7 +304,9 @@ Logging in here logs out the app or Home Assistant if they use the same account.
 | `status [--raw]` | parsed (and raw) vehicle status |
 | `probe [--out DIR]` | queries every known read endpoint, saves the raw answers and prints fields the integration doesn't use yet — attach the output when reporting a car that behaves differently |
 | `call PATH [JSON]` | raw authenticated request, for exploring the API |
-| `lock` / `unlock` | remote locking (asks for the control PIN) |
+| `lock` / `unlock` | remote locking (asks for the control PIN, or uses the one cached with `login --save-pin`) |
+| `windows` | asks the car for a fresh status and prints open state and opening degree per window |
+| `raw CONTROL [JSON] [--no-pin]` | signed remote command, e.g. `raw windows '{"command": "window", "open": false}'` — for finding out parameters; the car really executes it |
 | `climate on 21` / `climate off` | climate control |
 | `charge-plan add 2300 0600` | creates a charging schedule; `modify ID HHMM HHMM`, `enable ID`, `disable ID`, `delete ID` change it |
 
@@ -345,8 +355,9 @@ The two reference projects disagree on a few details; this is what's implemented
 
 - Honk/flash: `type` 1 = light only, 3 = light + horn (per Sunek0; fano uses 1 for
   "find my car") — hence two separate buttons
-- Windows: without `openType` (fano). With `openType: 10` (Sunek0) a Mazda 6e in
-  Europe rejects the command with "The Controller Is Not Responding"
+- Windows: without `openType` (fano). With every `openType` tried (0–11, 20, 50, 99–101, 255, -1, incl. Sunek0's
+  10) a Mazda 6e in Europe rejects opening with "The Controller Is Not Responding".
+  The `windows`/`openDegree` arrays of the status list the rear windows first
 - Signature: no empty `rcToken` for commands that don't need a PIN
 
 If any of this doesn't work on your actual car, please report it with a debug log.

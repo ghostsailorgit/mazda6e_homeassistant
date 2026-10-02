@@ -152,13 +152,20 @@ laut seiner Funktionsliste (`function-config`) nicht hat, werden nicht angelegt.
 | Regler **Ladelimit einstellen** | 60–100 % | – |
 | Auswahl **Sitzheizung / Sitzlüftung Fahrer & Beifahrer** | Aus, Stufe 1–3 | – |
 | Schalter **Lenkradheizung**, **Frontscheibe enteisen** | an/aus | – |
-| Abdeckung **Fenster**, **Heckklappe** | öffnen/schließen | gespeicherte PIN nötig |
+| Abdeckung **Fenster lüften**, **Heckklappe** | öffnen/schließen | gespeicherte PIN nötig |
 | Schalter + Uhrzeit **Akku vorheizen (Plan im Auto)** | der Vorheizplan, den auch die App zeigt | – |
 | Schalter + Start/Ende **Ladezeitplan (Plan im Auto)** | der Ladeplan aus der App (nur wenn einer existiert) | – |
 
 Fenster und Heckklappe fragen in Home Assistant keine PIN ab (Abdeckungen können das
 nicht) – sie funktionieren nur mit gespeicherter Steuer-PIN, sonst kommt eine
 Fehlermeldung.
+
+> **Fenster öffnen nur einen Spalt.** Über Mazdas Cloud bietet das Auto nur die
+> Lüftungsstellung: Die vorderen Fenster gehen etwa 10 % auf. Alle Fenster ganz
+> öffnen und den Heckspoiler aus- und einfahren geht nur per Bluetooth (digitaler
+> Schlüssel der App, Funktionscodes `#windowOpenBT` / `#SpoilerRaiseLowerBT`) – auch
+> die App öffnet ohne Bluetooth-Verbindung zum Auto nur einen Spalt und blendet den
+> Spoiler-Knopf aus. Home Assistant kann das nicht.
 
 Zusätzliche Sensoren: Luftfeuchte und Feinstaub im Innenraum, Lichter
 (Abblend-/Fernlicht, Standlicht, Blinker – standardmäßig deaktiviert).
@@ -223,6 +230,7 @@ wieder einschaltest.
 | `mazda6e.start_preconditioning` | jetzt vorklimatisieren; optional `temperature`, `duration`, `seat_heat` (0–3), `steering_wheel`, `defrost`, `battery` – leere Felder nehmen das Profil |
 | `mazda6e.stop_preconditioning` | Klima, Sitz-/Lenkradheizung und Enteisen aus |
 | `mazda6e.skip_next_departure` | nächste Abfahrt der Abfahrtspläne auslassen |
+| `mazda6e.send_raw_command` | Diagnose, nur für Admins: sendet einen beliebigen signierten Fernbefehl (`control`, z. B. `windows`, und `params`) und liefert die Antwort des Autos – um Parameter der App herauszufinden. Das Auto führt ihn wirklich aus |
 
 `device_id` ist nur bei mehreren Autos nötig. `start_preconditioning` liefert als Antwort
 die fehlgeschlagenen Schritte (`failed`). Jeder Lauf löst das Event
@@ -302,7 +310,9 @@ meldet App bzw. Home Assistant ab, wenn sie dasselbe Konto nutzen.
 | `status [--raw]` | ausgewerteter (und roher) Fahrzeugstatus |
 | `probe [--out VERZ]` | fragt alle bekannten Lese-Endpoints ab, speichert die Rohantworten und zeigt Felder, die die Integration noch nicht nutzt – bitte anhängen, wenn sich ein Auto anders verhält |
 | `call PFAD [JSON]` | roher authentifizierter Aufruf, zum Erkunden der API |
-| `lock` / `unlock` | Fernverriegelung (fragt nach der Steuer-PIN) |
+| `lock` / `unlock` | Fernverriegelung (fragt nach der Steuer-PIN oder nutzt die mit `login --save-pin` gespeicherte) |
+| `windows` | fordert einen frischen Status vom Auto an und zeigt Offen-Zustand und Öffnungsgrad je Fenster |
+| `raw CONTROL [JSON] [--no-pin]` | signierter Fernbefehl, z. B. `raw windows '{"command": "window", "open": false}'` – um Parameter herauszufinden; das Auto führt ihn wirklich aus |
 | `climate on 21` / `climate off` | Klimatisierung |
 | `charge-plan add 2300 0600` | legt einen Ladezeitplan an; `modify ID HHMM HHMM`, `enable ID`, `disable ID`, `delete ID` ändern ihn |
 
@@ -352,8 +362,9 @@ Die beiden Referenzprojekte unterscheiden sich an einigen Stellen; umgesetzt ist
 
 - Hupen/Blinken: `type` 1 = nur Licht, 3 = Licht + Hupe (laut Sunek0; fano nutzt 1 für
   „Auto finden“) – daher zwei Knöpfe
-- Fenster: ohne `openType` (fano). Mit `openType: 10` (Sunek0) lehnt ein Mazda 6e in
-  Europa den Befehl mit „The Controller Is Not Responding“ ab
+- Fenster: ohne `openType` (fano). Mit jedem probierten `openType` (0–11, 20, 50, 99–101, 255, -1, auch Sunek0s 10)
+  lehnt ein Mazda 6e in Europa das Öffnen mit „The Controller Is Not Responding“ ab.
+  Die Listen `windows`/`openDegree` im Status nennen die hinteren Fenster zuerst
 - Signatur: ohne leeres `rcToken` bei Befehlen ohne PIN
 
 Falls etwas davon am echten Auto nicht klappt, bitte mit Debug-Log melden.

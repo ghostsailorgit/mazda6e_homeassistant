@@ -55,6 +55,13 @@ def test_parse_full_status():
     }
     assert s.any_door_open is True
     assert s.any_window_open is True
+    # windows array lists the rear windows first
+    assert s.windows_open == {
+        "rear_left": False,
+        "rear_right": False,
+        "front_left": False,
+        "front_right": True,
+    }
     assert s.inside_temperature == 21.5
     assert s.target_temperature is None  # 0 means "not reported"
     assert s.vehicle_state == "parked"

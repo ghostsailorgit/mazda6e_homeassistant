@@ -11,14 +11,16 @@ from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse, cal
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.service import async_register_admin_service
 
-from .api import CLIMATE_MAX_TEMP, CLIMATE_MIN_TEMP
+from .api import CLIMATE_MAX_TEMP, CLIMATE_MIN_TEMP, MazdaError
 from .const import DOMAIN
 from .precondition import LEAD_MAX, LEAD_MIN, Preconditioner
 
 SERVICE_START = "start_preconditioning"
 SERVICE_STOP = "stop_preconditioning"
 SERVICE_SKIP = "skip_next_departure"
+SERVICE_RAW = "send_raw_command"
 
 ATTR_DURATION = "duration"
 ATTR_SEAT_HEAT = "seat_heat"
@@ -42,6 +44,14 @@ START_SCHEMA = vol.Schema(
     }
 )
 TARGET_SCHEMA = vol.Schema(TARGET)
+RAW_SCHEMA = vol.Schema(
+    {
+        **TARGET,
+        vol.Required("control"): cv.string,
+        vol.Optional("params", default={}): vol.Schema({cv.string: object}),
+        vol.Optional("needs_pin", default=True): cv.boolean,
+    }
+)
 
 
 def _preconditioners(hass: HomeAssistant) -> dict[str, Preconditioner]:
@@ -102,3 +112,23 @@ def async_setup_services(hass: HomeAssistant) -> None:
         DOMAIN, SERVICE_STOP, stop, schema=TARGET_SCHEMA, supports_response=SupportsResponse.OPTIONAL
     )
     hass.services.async_register(DOMAIN, SERVICE_SKIP, skip, schema=TARGET_SCHEMA)
+
+    async def raw(call: ServiceCall) -> dict[str, Any]:
+        """Diagnostics: send any remote command and return the car's answer."""
+        preconditioner = _resolve(hass, call)
+        coordinator = preconditioner.coordinator
+        try:
+            result = await coordinator.client.send_raw_command(
+                preconditioner.vehicle_id,
+                call.data["control"],
+                dict(call.data["params"]),
+                needs_pin=call.data["needs_pin"],
+            )
+        except (MazdaError, ValueError) as err:
+            return {"success": False, "error": str(err), "code": getattr(err, "code", None)}
+        await coordinator.async_request_refresh()
+        return {"success": True, "result": result}
+
+    async_register_admin_service(
+        hass, DOMAIN, SERVICE_RAW, raw, schema=RAW_SCHEMA, supports_response=SupportsResponse.ONLY
+    )

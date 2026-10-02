@@ -564,6 +564,31 @@ class Mazda6eClient:
             pin=pin,
         )
 
+    async def send_raw_command(
+        self,
+        vehicle_id: str,
+        control: str,
+        params: dict[str, Any],
+        *,
+        needs_pin: bool = True,
+        pin: str | None = None,
+    ) -> dict[str, Any]:
+        """Send any signed remote command, for finding out the app's parameters.
+
+        ``control`` is the last part of ``cma-app-car-control/api/control/...``
+        (e.g. ``windows``); only that endpoint family can be reached.
+        """
+        control = control.strip("/")
+        if not control or not all(part.replace("-", "").replace("_", "").isalnum() for part in control.split("/")):
+            raise ValueError(f"Invalid control endpoint: {control!r}")
+        return await self._signed_command(
+            f"cma-app-car-control/api/control/{control}",
+            vehicle_id,
+            params,
+            needs_pin=needs_pin,
+            pin=pin,
+        )
+
     async def set_trunk(self, vehicle_id: str, open_: bool, pin: str | None = None) -> None:
         """Open or close the tailgate (needs the control PIN)."""
         await self._signed_command(

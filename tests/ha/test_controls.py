@@ -143,10 +143,10 @@ async def test_seats_follow_function_config(hass: HomeAssistant, client) -> None
 
 async def test_covers_need_pin(hass: HomeAssistant, client) -> None:
     await _setup(hass)
-    assert hass.states.get("cover.mazda_6e_windows").state == "closed"
-    await _call(hass, "cover", "open_cover", "cover.mazda_6e_windows")
+    assert hass.states.get("cover.mazda_6e_windows_ventilation").state == "closed"
+    await _call(hass, "cover", "open_cover", "cover.mazda_6e_windows_ventilation")
     client["set_windows"].assert_awaited_once_with("42", True)
-    assert hass.states.get("cover.mazda_6e_windows").state == "open"
+    assert hass.states.get("cover.mazda_6e_windows_ventilation").state == "open"
 
     client["set_trunk"].side_effect = MazdaPinError("no pin")
     with pytest.raises(HomeAssistantError) as err:

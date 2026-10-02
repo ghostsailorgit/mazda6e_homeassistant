@@ -20,8 +20,15 @@ Reading:
 
 Commands (the car must confirm them, like in the app):
     lock | unlock                  asks for the 6-digit control PIN
+                                   (or uses the one saved with login --save-pin)
     climate on TEMP | climate off
     charge-plan add HHMM HHMM | modify ID HHMM HHMM | delete ID | enable ID | disable ID
+
+Exploring commands of the app:
+    windows                        asks the car for a fresh status (~30 s) and
+                                   prints open state and opening degree per window
+    raw CONTROL [JSON] [--no-pin]  signed command to cma-app-car-control/api/control/CONTROL,
+                                   e.g. raw windows '{"open": true, "openDegree": 100}'
 """
 
 from __future__ import annotations
@@ -80,7 +87,10 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--vin", help="pick a car by (the end of) its VIN; default: the first car")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("login", help="log in and cache the tokens")
+    login = sub.add_parser("login", help="log in and cache the tokens")
+    login.add_argument(
+        "--save-pin", action="store_true", help="also ask for the control PIN and cache it (file mode 600)"
+    )
     status = sub.add_parser("status", help="print the vehicle status")
     status.add_argument("--raw", action="store_true", help="also print the raw JSON response")
     probe = sub.add_parser("probe", help="query every known read endpoint")
@@ -89,6 +99,11 @@ def _parser() -> argparse.ArgumentParser:
     call.add_argument("path")
     call.add_argument("body", nargs="?", default="{}")
 
+    sub.add_parser("windows", help="fresh window status from the car")
+    raw = sub.add_parser("raw", help="signed remote command (the car executes it)")
+    raw.add_argument("control", help="e.g. windows, trunk, doors")
+    raw.add_argument("params", nargs="?", default="{}", help="JSON body without vehicleId/rcToken/serial/sign")
+    raw.add_argument("--no-pin", action="store_true", help="command does not need the control PIN")
     sub.add_parser("lock")
     sub.add_parser("unlock")
     climate = sub.add_parser("climate")
@@ -178,8 +193,15 @@ async def _run_command(client: Any, vehicle: Any, args: argparse.Namespace) -> A
     vid = vehicle.vehicle_id
     command = args.command
     if command in ("lock", "unlock"):
-        pin = getpass.getpass("Control PIN (6 digits): ")
+        pin = client.control_pin or getpass.getpass("Control PIN (6 digits): ")
         return await client.set_locked(vid, command == "lock", pin=pin)
+    if command == "raw":
+        pin = None
+        if not args.no_pin and not client.control_pin:
+            pin = getpass.getpass("Control PIN (6 digits): ")
+        return await client.send_raw_command(
+            vid, args.control, json.loads(args.params), needs_pin=not args.no_pin, pin=pin
+        )
     if command == "climate":
         return await client.set_climate(vid, args.state == "on", args.temperature)
     if command == "charge-plan":
@@ -198,6 +220,30 @@ async def _run_command(client: Any, vehicle: Any, args: argparse.Namespace) -> A
     raise SystemExit(f"Unknown command {command}")
 
 
+WINDOW_NAMES = ("rear left", "rear right", "front left", "front right")
+
+
+async def _windows(client: Any, vehicle: Any) -> None:
+    """Fresh window state: wake the car, wait for its upload, print the arrays."""
+    before = (await client.get_status_raw(vehicle.vehicle_id)).get("lastUpdatedAt")
+    await client.request_status_update(vehicle.vehicle_id)
+    raw: dict[str, Any] = {}
+    for _ in range(12):  # the car needs a while to upload
+        await asyncio.sleep(5)
+        raw = await client.get_status_raw(vehicle.vehicle_id)
+        if raw.get("lastUpdatedAt") != before:
+            break
+    else:
+        print("(the car sent no new status, showing the last one)")
+    window = raw.get("window") or {}
+    print(_dump(window))
+    states, degrees = window.get("windows") or [], window.get("openDegree") or []
+    for i, name in enumerate(WINDOW_NAMES):
+        state = states[i] if i < len(states) else "?"
+        degree = degrees[i] if i < len(degrees) else "?"
+        print(f"  [{i}] {name:12} open={state}  degree={degree}")
+
+
 async def main() -> None:
     args = _parser().parse_args()
     cache = _load_cache(args.email)
@@ -212,6 +258,7 @@ async def main() -> None:
                 "refresh_token": refresh,
                 "private_key": client.private_key,
                 "user_id": client.user_id,
+                "control_pin": client.control_pin,
             },
         )
 
@@ -224,11 +271,14 @@ async def main() -> None:
             refresh_token=cache.get("refresh_token"),
             on_token_update=remember,
             private_key=cache.get("private_key"),
+            control_pin=cache.get("control_pin"),
         )
         client.user_id = cache.get("user_id")
 
         if args.command == "login":
             await _login(client, args.email)
+            if args.save_pin:
+                client.control_pin = getpass.getpass("Control PIN (6 digits) to cache: ")
             remember(client.token, client.refresh_token)
             vehicles = await client.get_vehicles()
             print(f"Logged in, {len(vehicles)} car(s): " + ", ".join(v.display_name for v in vehicles))
@@ -250,6 +300,9 @@ async def main() -> None:
         vehicle = _pick(vehicles, args.vin)
         if args.command == "probe":
             await _probe(client, vehicle, Path(args.out))
+            return
+        if args.command == "windows":
+            await _windows(client, vehicle)
             return
         if args.command == "status":
             print(f"=== {vehicle.display_name} (id {vehicle.vehicle_id}) ===")
