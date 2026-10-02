@@ -84,6 +84,38 @@ SERIAL_HEATING_PLAN = "5"
 COMMAND_TIMEOUT = 90  # seconds the car gets to confirm a command
 COMMAND_POLL_INTERVAL = 3
 
+# Sections of condition/v2 and whether the integration asks for them.
+STATUS_CRITERIA: dict[str, bool] = {
+    "vehicleStatus": True,
+    "charge": True,
+    "door": True,
+    "window": True,
+    "hvac": True,
+    "tire": True,
+    "lamp": True,
+    "seat": True,
+    "location": False,
+    "fuel": False,
+    "departurePlan": False,
+    "airConditionPlan": False,
+    "warmCoolingBox": False,
+    "welcome": False,
+}
+
+
+def _check_hhmm(*values: str) -> None:
+    for value in values:
+        if len(value) != 4 or not value.isdigit() or int(value[:2]) > 23 or int(value[2:]) > 59:
+            raise ValueError(f"Time must be HHMM, got {value!r}")
+
+
+def local_gmt_offset() -> str:
+    """Local UTC offset the way the app sends it, e.g. "GMT+02:00"."""
+    offset = time.localtime().tm_gmtoff
+    sign = "+" if offset >= 0 else "-"
+    hours, minutes = divmod(abs(offset) // 60, 60)
+    return f"GMT{sign}{hours:02d}:{minutes:02d}"
+
 
 class MazdaError(Exception):
     """Base error of this client."""
@@ -154,6 +186,7 @@ class Mazda6eClient:
         self._refresh_lock = asyncio.Lock()
         self.private_key = private_key
         self.control_pin = control_pin
+        self.user_id: str | None = None
         # The backend handles one command per car at a time.
         self._command_lock = asyncio.Lock()
 
@@ -187,24 +220,28 @@ class Mazda6eClient:
 
     async def _request(self, path: str, body: dict[str, Any]) -> Any:
         """Authenticated request with a single token refresh on expiry."""
+        data = await self.call(path, body)
+        if data.get("success") is True:
+            return data.get("data")
+        code = data.get("code")
+        if code == CODE_TOKEN_EXPIRED:
+            raise MazdaAuthError("Token rejected after refresh", code)
+        raise MazdaApiError(f"{path}: {code} {data.get('msg')}", code)
+
+    async def call(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+        """Authenticated request returning the whole response envelope.
+
+        Refreshes an expired token once; any other backend error is returned,
+        not raised, so callers can inspect ``code`` and ``msg``.
+        """
         if not self.token:
             raise MazdaAuthError("Not logged in")
-
-        for attempt in range(2):
+        data = await self._post(path, body)
+        if data.get("code") == CODE_TOKEN_EXPIRED:
+            _LOGGER.debug("Token expired, refreshing")
+            await self._refresh(expired_token=self.token)
             data = await self._post(path, body)
-            if data.get("success") is True:
-                return data.get("data")
-
-            code = data.get("code")
-            if code == CODE_TOKEN_EXPIRED and attempt == 0:
-                _LOGGER.debug("Token expired, refreshing")
-                await self._refresh(expired_token=self.token)
-                continue
-            if code == CODE_TOKEN_EXPIRED:
-                raise MazdaAuthError("Token rejected after refresh", code)
-            raise MazdaApiError(f"{path}: {code} {data.get('msg')}", code)
-
-        raise MazdaAuthError("Token refresh loop")  # pragma: no cover
+        return data
 
     async def _refresh(self, expired_token: str | None) -> None:
         async with self._refresh_lock:
@@ -248,6 +285,8 @@ class Mazda6eClient:
             raise MazdaAuthError(f"Login rejected: {data.get('msg')}", data.get("code"))
         payload = data.get("data") or {}
         await self._store_tokens(payload)
+        if payload.get("userId") is not None:
+            self.user_id = str(payload["userId"])
         return bool(payload.get("emailVerify"))
 
     async def request_device_code(self, email: str) -> None:
@@ -279,7 +318,7 @@ class Mazda6eClient:
 
     # ------------------------------------------------------------------ data
 
-    async def get_vehicles(self) -> list[Vehicle]:
+    async def get_vehicles_raw(self) -> list[dict[str, Any]]:
         raw: Any = []
         # The backend has two routes; depending on account one of them is empty.
         for path in ("cma-app-user/api/vehicle/vehicles", "cma-app-user/api/car/vehicles"):
@@ -290,29 +329,22 @@ class Mazda6eClient:
                 continue
             if raw:
                 break
-        return [Vehicle.from_api(v) for v in raw or [] if isinstance(v, dict) and v.get("vin")]
+        return [v for v in raw or [] if isinstance(v, dict) and v.get("vin")]
 
-    async def get_status_raw(self, vehicle_id: str) -> dict[str, Any]:
+    async def get_vehicles(self) -> list[Vehicle]:
+        return [Vehicle.from_api(v) for v in await self.get_vehicles_raw()]
+
+    async def get_status_raw(
+        self, vehicle_id: str, criteria: dict[str, bool] | None = None
+    ) -> dict[str, Any]:
+        """Raw condition. ``criteria`` switches extra sections on or off."""
+        sections = {**STATUS_CRITERIA, **(criteria or {})}
         data = await self._request(
             "cma-app-car-condition/api/vehicle/condition/v2",
             {
                 "vehicleId": vehicle_id,
-                "vechileCriteria": {  # sic, typo is part of the API
-                    "vehicleStatus": "1",
-                    "charge": "1",
-                    "door": "1",
-                    "window": "1",
-                    "hvac": "1",
-                    "tire": "1",
-                    "lamp": "1",
-                    "seat": "1",
-                    "location": "0",
-                    "fuel": "0",
-                    "departurePlan": "0",
-                    "airConditionPlan": "0",
-                    "warmCoolingBox": "0",
-                    "welcome": "0",
-                },
+                # sic, the typo is part of the API
+                "vechileCriteria": {key: "1" if on else "0" for key, on in sections.items()},
             },
         )
         return data if isinstance(data, dict) else {}
@@ -542,9 +574,7 @@ class Mazda6eClient:
 
     async def get_battery_preheat_plan(self, vehicle_id: str) -> dict[str, Any] | None:
         """The car's battery preheating plan (planType 0), if it has one."""
-        plans = await self._request(
-            "cma-app-car-control/api/heating-plans/query/list", {"vehicleId": vehicle_id}
-        )
+        plans = await self.get_heating_plans_raw(vehicle_id)
         if not isinstance(plans, list):
             return None
         return next(
@@ -581,19 +611,17 @@ class Mazda6eClient:
         *,
         start: str,
         end: str,
-        enabled: bool,
-    ) -> None:
-        """Change the car's charging schedule. start/end as "HHMM".
+    ) -> dict[str, Any]:
+        """Change the times of the car's charging schedule. start/end as "HHMM".
 
-        Plan id, type, time format and time zone are taken from the plan the
-        car reported, so nothing is guessed.
+        The car reports plans without a time zone, so the local one is sent
+        unless the plan carries its own. Switching the plan on or off is
+        ``set_charge_plan_enabled``.
         """
-        for value in (start, end):
-            if len(value) != 4 or not value.isdigit():
-                raise ValueError("Times must be HHMM")
-        if not plan.get("timeZone") or plan.get("planId") is None:
-            raise ValueError("The car reported an incomplete charging plan")
-        await self._signed_command(
+        _check_hhmm(start, end)
+        if plan.get("planId") is None:
+            raise ValueError("The car reported a charging plan without id")
+        return await self._signed_command(
             "cma-app-car-control/api/charge/modify-plan",
             vehicle_id,
             {
@@ -602,12 +630,58 @@ class Mazda6eClient:
                 "planType": plan.get("planType", 1),
                 "startTime": start,
                 "endTime": end,
-                "endSwitch": 1 if enabled else 0,
+                "endSwitch": plan.get("endSwitch", 1),
                 "timeFormat": plan.get("timeFormat", 1),
-                "timeZone": plan["timeZone"],
+                "timeZone": plan.get("timeZone") or local_gmt_offset(),
             },
             needs_pin=False,
             serial_type=SERIAL_CHARGE,
+        )
+
+    async def add_charge_plan(
+        self, vehicle_id: str, *, start: str, end: str, end_enabled: bool = True
+    ) -> dict[str, Any]:
+        """Create a charging schedule (start/end as "HHMM") in the local time zone."""
+        _check_hhmm(start, end)
+        return await self._signed_command(
+            "cma-app-car-control/api/charge/add-plan",
+            vehicle_id,
+            {
+                "command": "add_charge_plan",
+                "planType": 1,
+                "startTime": start,
+                "endTime": end,
+                "endSwitch": 1 if end_enabled else 0,
+                "timeFormat": 1,
+                "timeZone": local_gmt_offset(),
+            },
+            needs_pin=False,
+            serial_type=SERIAL_CHARGE,
+        )
+
+    async def delete_charge_plan(self, vehicle_id: str, plan_id: str) -> dict[str, Any]:
+        return await self._signed_command(
+            "cma-app-car-control/api/charge/delete-plan",
+            vehicle_id,
+            {"command": "delete_charge_plan", "planId": str(plan_id)},
+            needs_pin=False,
+            serial_type=SERIAL_CHARGE,
+        )
+
+    async def set_charge_plan_enabled(
+        self, vehicle_id: str, plan_id: str, enabled: bool
+    ) -> dict[str, Any]:
+        return await self._signed_command(
+            "cma-app-car-control/api/charge/validity",
+            vehicle_id,
+            {"command": "COMMAND_VALID_CHARGE_PLAN", "planId": str(plan_id), "enabled": enabled},
+            needs_pin=False,
+            serial_type=SERIAL_CHARGE,
+        )
+
+    async def get_heating_plans_raw(self, vehicle_id: str) -> Any:
+        return await self._request(
+            "cma-app-car-control/api/heating-plans/query/list", {"vehicleId": vehicle_id}
         )
 
     async def get_functions(self, vehicle_id: str) -> set[str]:

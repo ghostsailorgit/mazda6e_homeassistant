@@ -23,15 +23,15 @@ from custom_components.mazda6e.models import Vehicle, VehicleStatus
 
 CLIENT = "custom_components.mazda6e.api.Mazda6eClient"
 VEHICLE = Vehicle(vehicle_id="42", vin="VIN0001", model_name="MAZDA 6e")
+# As a real car reports it: no time zone or time format.
 CHARGE_PLAN = {
     "planId": 5,
     "planType": 1,
+    "isValid": 1,
     "startTime": "2300",
-    "endTime": "0600",
     "startSwitch": 1,
+    "endTime": "0600",
     "endSwitch": 1,
-    "timeZone": "GMT+02:00",
-    "timeFormat": 1,
 }
 COMMANDS = (
     "request_status_update",
@@ -44,6 +44,7 @@ COMMANDS = (
     "set_trunk",
     "set_battery_preheat",
     "set_charge_plan",
+    "set_charge_plan_enabled",
 )
 
 
@@ -159,10 +160,12 @@ async def test_car_plans(hass: HomeAssistant, client) -> None:
     await _call(hass, "time", "set_value", "time.mazda_6e_charging_schedule_start", time="22:30")
     _, plan = client["set_charge_plan"].await_args.args
     assert plan["planId"] == 5
-    assert client["set_charge_plan"].await_args.kwargs == {"start": "2230", "end": "0600", "enabled": True}
+    assert client["set_charge_plan"].await_args.kwargs == {"start": "2230", "end": "0600"}
 
+    assert hass.states.get("switch.mazda_6e_charging_schedule_car_plan").state == "on"
     await _call(hass, "switch", "turn_off", "switch.mazda_6e_charging_schedule_car_plan")
-    assert client["set_charge_plan"].await_args.kwargs["enabled"] is False
+    client["set_charge_plan_enabled"].assert_awaited_once_with("42", 5, False)
+    assert hass.states.get("switch.mazda_6e_charging_schedule_car_plan").state == "off"
 
     await _call(hass, "switch", "turn_on", "switch.mazda_6e_battery_preheating_car_plan")
     vid, plan, end = client["set_battery_preheat"].await_args.args

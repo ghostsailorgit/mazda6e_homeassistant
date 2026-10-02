@@ -285,13 +285,22 @@ you can set the polling interval (default: 5 minutes).
 
 ```bash
 pip install aiohttp cryptography
-python scripts/mazda6e_cli.py --email you@example.com --raw
+python scripts/mazda6e_cli.py --email you@example.com login
+python scripts/mazda6e_cli.py --email you@example.com status --raw
 ```
 
-The script logs in, asks for the email code if needed, and prints the vehicle
-status — handy for checking that all the values look right. Use `--lock` / `--unlock`
-to test remote locking (asks for the control PIN), and `--climate-on 21` /
-`--climate-off` for climate control.
+`login` asks for the password and, if needed, the email code, and caches the
+session in `~/.mazda6e_cli.json`; every other command runs without a password.
+Logging in here logs out the app or Home Assistant if they use the same account.
+
+| Command | What it does |
+| --- | --- |
+| `status [--raw]` | parsed (and raw) vehicle status |
+| `probe [--out DIR]` | queries every known read endpoint, saves the raw answers and prints fields the integration doesn't use yet — attach the output when reporting a car that behaves differently |
+| `call PATH [JSON]` | raw authenticated request, for exploring the API |
+| `lock` / `unlock` | remote locking (asks for the control PIN) |
+| `climate on 21` / `climate off` | climate control |
+| `charge-plan add 2300 0600` | creates a charging schedule; `modify ID HHMM HHMM`, `enable ID`, `disable ID`, `delete ID` change it |
 
 ## Troubleshooting
 

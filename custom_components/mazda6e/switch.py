@@ -160,17 +160,13 @@ class Mazda6eBatteryPreheatSwitch(Mazda6eControlEntity, SwitchEntity):
         self.async_write_ha_state()
 
 
-def charge_plan_enabled(plan: dict[str, Any]) -> bool:
-    return plan.get("startSwitch") == 1 and plan.get("endSwitch") == 1
-
-
 class Mazda6eChargeScheduleSwitch(Mazda6eControlEntity, SwitchEntity):
     """The car's charging schedule (start/end times are time entities)."""
 
     @property
     def is_on(self) -> bool | None:
         plan = self.status.charge_plan
-        return None if plan is None else charge_plan_enabled(plan)
+        return None if plan is None else plan.get("isValid") == 1
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         await self._async_set(True)
@@ -181,16 +177,10 @@ class Mazda6eChargeScheduleSwitch(Mazda6eControlEntity, SwitchEntity):
     async def _async_set(self, on: bool) -> None:
         plan = self.status.charge_plan
         await self._async_command(
-            self.coordinator.client.set_charge_plan(
-                self._vehicle_id,
-                plan,
-                start=str(plan.get("startTime") or "0000"),
-                end=str(plan.get("endTime") or "0000"),
-                enabled=on,
-            ),
+            self.coordinator.client.set_charge_plan_enabled(self._vehicle_id, plan["planId"], on),
             {},
         )
-        plan["startSwitch"] = plan["endSwitch"] = 1 if on else 0
+        plan["isValid"] = 1 if on else 0
         self.async_write_ha_state()
 
 

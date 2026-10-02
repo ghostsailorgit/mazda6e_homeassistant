@@ -470,23 +470,49 @@ def test_battery_preheat_plan(control):
 
 def test_charge_plan(control):
     public, private = control
-    backend = FakeControlBackend(public, [0])
+    backend = FakeControlBackend(public, [0, 0])
     plan = {"planId": 5, "planType": 1, "timeFormat": 1, "timeZone": "GMT+02:00"}
+    # what the car actually reports: no time zone or time format
+    reported = {"planId": 6, "planType": 1, "isValid": 1, "startTime": "0100", "endSwitch": 1}
 
     async def run(client):
-        await client.set_charge_plan("42", plan, start="2230", end="0600", enabled=True)
+        await client.set_charge_plan("42", plan, start="2230", end="0600")
+        await client.set_charge_plan("42", reported, start="0230", end="0615")
         with pytest.raises(ValueError):
-            await client.set_charge_plan("42", plan, start="22:30", end="0600", enabled=True)
+            await client.set_charge_plan("42", plan, start="22:30", end="0600")
         with pytest.raises(ValueError):
-            await client.set_charge_plan("42", {"planId": 5}, start="2230", end="0600", enabled=True)
+            await client.set_charge_plan("42", {"timeZone": "GMT+02:00"}, start="2230", end="0600")
 
     _run_control(backend, private, run)
-    body = backend.commands[0]
-    assert backend.command_paths == ["charge/modify-plan"]
-    assert (body["startTime"], body["endTime"], body["endSwitch"], body["timeZone"]) == (
+    first, second = backend.commands
+    assert backend.command_paths == ["charge/modify-plan", "charge/modify-plan"]
+    assert (first["startTime"], first["endTime"], first["endSwitch"], first["timeZone"]) == (
         "2230", "0600", 1, "GMT+02:00"
     )
-    assert backend.serial_types == ["2"]
+    assert second["planId"] == "6"
+    assert second["timeZone"] == api_mod.local_gmt_offset()
+    assert backend.serial_types == ["2", "2"]
+
+
+def test_charge_plan_lifecycle(control):
+    public, private = control
+    backend = FakeControlBackend(public, [0, 0, 0])
+
+    async def run(client):
+        await client.add_charge_plan("42", start="0100", end="0500")
+        await client.set_charge_plan_enabled("42", "6", False)
+        await client.delete_charge_plan("42", "6")
+        with pytest.raises(ValueError):
+            await client.add_charge_plan("42", start="0100", end="2460")
+
+    _run_control(backend, private, run)
+    assert backend.command_paths == ["charge/add-plan", "charge/validity", "charge/delete-plan"]
+    added, validity, deleted = backend.commands
+    assert (added["command"], added["startTime"], added["endTime"]) == ("add_charge_plan", "0100", "0500")
+    assert added["timeZone"] == api_mod.local_gmt_offset()
+    assert (validity["planId"], validity["enabled"]) == ("6", False)
+    assert (deleted["command"], deleted["planId"]) == ("delete_charge_plan", "6")
+    assert backend.serial_types == ["2", "2", "2"]
 
 
 def test_value_checks_before_sending(control):
