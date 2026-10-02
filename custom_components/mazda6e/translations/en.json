@@ -186,6 +186,9 @@
       },
       "precondition_next_start": {
         "name": "Next pre-conditioning start"
+      },
+      "precondition_departure_temperature": {
+        "name": "Forecast at departure"
       }
     },
     "binary_sensor": {

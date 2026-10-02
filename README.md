@@ -164,7 +164,12 @@ plan. The main switch *Pre-conditioning departure plans* turns all plans on or o
   pre-conditioning — it runs as if no threshold were set
 
 **Display:** *Next departure* and *Next pre-conditioning start* (timestamps; the
-attributes show the plan, the last run and any failed steps).
+attributes show the plan, the last run and any failed steps) and *Forecast at
+departure* — the hourly forecast of the weather source for the next departure,
+refreshed every 30 minutes. If the departure lies beyond the hourly forecast
+(usually ~2 days), it shows the day's forecast low instead (attribute
+`forecast_type`: `hourly` / `daily`); unknown without a weather source or forecast.
+The weather gate itself always uses the hourly forecast.
 
 > **Upgrading from 0.7 or older:** the per-weekday switches and times are replaced by
 > departure plans. Your settings are converted automatically (days with the same

@@ -168,7 +168,12 @@ schaltet alle Pläne ein oder aus.
   wird trotzdem vorklimatisiert – ein Fehler blockiert nie das Vorheizen
 
 **Anzeige:** *Nächste Abfahrt* und *Nächster Vorklimatisierungsstart* (Zeitstempel; die
-Attribute zeigen den Plan, den letzten Lauf und fehlgeschlagene Schritte).
+Attribute zeigen den Plan, den letzten Lauf und fehlgeschlagene Schritte) sowie
+*Temperatur bei Abfahrt* – die stündliche Vorhersage der Wetterquelle für die nächste
+Abfahrt, alle 30 Minuten aktualisiert. Liegt die Abfahrt jenseits der
+Stundenvorhersage (meist ~2 Tage), zeigt er den vorhergesagten Tiefstwert des Tages
+(Attribut `forecast_type`: `hourly` / `daily`); unbekannt ohne Wetterquelle oder
+Vorhersage. Die Wetterbedingung fürs Vorheizen nutzt immer die Stundenvorhersage.
 
 > **Update von 0.7 oder älter:** Die Schalter und Uhrzeiten pro Wochentag werden durch
 > Abfahrtspläne ersetzt. Deine Einstellungen werden automatisch umgewandelt (Tage mit
