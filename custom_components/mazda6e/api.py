@@ -551,11 +551,15 @@ class Mazda6eClient:
         )
 
     async def set_windows(self, vehicle_id: str, open_: bool, pin: str | None = None) -> None:
-        """Open or close all windows (needs the control PIN)."""
+        """Open or close all windows (needs the control PIN).
+
+        Without ``openType``: with ``openType: 10`` a Mazda 6e (EU) answers
+        "The Controller Is Not Responding" while the app's command works.
+        """
         await self._signed_command(
             "cma-app-car-control/api/control/windows",
             vehicle_id,
-            {"command": "window", "open": open_, "openType": 10},
+            {"command": "window", "open": open_},
             needs_pin=True,
             pin=pin,
         )
