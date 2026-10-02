@@ -20,7 +20,7 @@ Reading:
 
 Commands (the car must confirm them, like in the app):
     lock | unlock                  asks for the 6-digit control PIN
-                                   (or uses the one saved with login --save-pin)
+                                   (or uses the one saved with login --save-pin / save-pin)
     climate on TEMP | climate off
     charge-plan add HHMM HHMM | modify ID HHMM HHMM | delete ID | enable ID | disable ID
 
@@ -99,6 +99,7 @@ def _parser() -> argparse.ArgumentParser:
     call.add_argument("path")
     call.add_argument("body", nargs="?", default="{}")
 
+    sub.add_parser("save-pin", help="ask for the control PIN and cache it (file mode 600)")
     sub.add_parser("windows", help="fresh window status from the car")
     raw = sub.add_parser("raw", help="signed remote command (the car executes it)")
     raw.add_argument("control", help="e.g. windows, trunk, doors")
@@ -286,6 +287,11 @@ async def main() -> None:
 
         if not client.token:
             raise SystemExit("Not logged in, run the login command first.")
+        if args.command == "save-pin":
+            client.control_pin = getpass.getpass("Control PIN (6 digits) to cache: ")
+            remember(client.token, client.refresh_token)
+            print("Control PIN cached.")
+            return
         try:
             vehicles = await client.get_vehicles()
         except api.MazdaAuthError as err:
