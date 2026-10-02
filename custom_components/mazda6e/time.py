@@ -13,7 +13,6 @@ from homeassistant.util import dt as dt_util
 from .coordinator import Mazda6eConfigEntry
 from .entity import Mazda6eControlEntity, Mazda6ePlanEntity, has_control, plan_entities
 from .precondition import WEEKDAYS, parse_time
-from .switch import charge_plan_enabled
 
 BATTERY_PREHEAT_TIME = TimeEntityDescription(
     key="battery_preheat_time", translation_key="battery_preheat_time", icon="mdi:clock-outline"
@@ -112,11 +111,7 @@ class Mazda6eChargeTime(Mazda6eControlEntity, TimeEntity):
         times[self._plan_key] = value.strftime("%H%M")
         await self._async_command(
             self.coordinator.client.set_charge_plan(
-                self._vehicle_id,
-                plan,
-                start=times["startTime"],
-                end=times["endTime"],
-                enabled=charge_plan_enabled(plan),
+                self._vehicle_id, plan, start=times["startTime"], end=times["endTime"]
             ),
             {},
         )

@@ -288,13 +288,22 @@ das Abfrageintervall (Standard: 5 Minuten) einstellen.
 
 ```bash
 pip install aiohttp cryptography
-python scripts/mazda6e_cli.py --email du@example.com --raw
+python scripts/mazda6e_cli.py --email du@example.com login
+python scripts/mazda6e_cli.py --email du@example.com status --raw
 ```
 
-Das Skript loggt sich ein, fragt ggf. nach dem E-Mail-Code und gibt den Fahrzeugstatus
-aus – ideal, um zu prüfen, ob alle Werte passen. Mit `--lock` bzw. `--unlock` lässt sich
-die Fernverriegelung testen (fragt nach der Steuer-PIN), mit `--climate-on 21` bzw.
-`--climate-off` die Klimasteuerung.
+`login` fragt nach Passwort und ggf. E-Mail-Code und speichert die Sitzung in
+`~/.mazda6e_cli.json`; alle anderen Befehle laufen danach ohne Passwort. Die Anmeldung
+meldet App bzw. Home Assistant ab, wenn sie dasselbe Konto nutzen.
+
+| Befehl | Funktion |
+| --- | --- |
+| `status [--raw]` | ausgewerteter (und roher) Fahrzeugstatus |
+| `probe [--out VERZ]` | fragt alle bekannten Lese-Endpoints ab, speichert die Rohantworten und zeigt Felder, die die Integration noch nicht nutzt – bitte anhängen, wenn sich ein Auto anders verhält |
+| `call PFAD [JSON]` | roher authentifizierter Aufruf, zum Erkunden der API |
+| `lock` / `unlock` | Fernverriegelung (fragt nach der Steuer-PIN) |
+| `climate on 21` / `climate off` | Klimatisierung |
+| `charge-plan add 2300 0600` | legt einen Ladezeitplan an; `modify ID HHMM HHMM`, `enable ID`, `disable ID`, `delete ID` ändern ihn |
 
 ## Fehlersuche
 

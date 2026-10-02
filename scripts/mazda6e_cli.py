@@ -1,23 +1,27 @@
 #!/usr/bin/env python3
-"""Test your Mazda 6e account without Home Assistant.
+"""Test and explore a Mazda 6e account without Home Assistant.
 
     pip install aiohttp cryptography
-    python scripts/mazda6e_cli.py --email you@example.com
+    python scripts/mazda6e_cli.py --email you@example.com login
 
-Logs in exactly like the integration, asks for the e-mail verification code
-if Mazda requests one, and prints the parsed and raw vehicle status. Tokens
-and the control key are cached in ~/.mazda6e_cli.json so repeated runs don't
-trigger new codes.
+Logs in exactly like the integration and asks for the e-mail verification
+code if Mazda requests one. Tokens and the control key are cached in
+~/.mazda6e_cli.json, so every other command runs without a password.
 
-    python scripts/mazda6e_cli.py --email you@example.com --lock
-    python scripts/mazda6e_cli.py --email you@example.com --unlock
+Mazda allows one active login per account: logging in here logs out the
+phone app or Home Assistant if they use the same account.
 
-locks/unlocks the first car; the 6-digit control PIN is asked for.
+Reading:
+    status [--raw]                 parsed (and raw) vehicle status
+    probe [--out DIR]              query every known read endpoint, save the
+                                   raw answers to DIR and print what is new
+    call PATH [JSON]               raw authenticated POST, e.g.
+                                   call cma-app-user/api/vehicle/function-config '{"vehicleId": "1"}'
 
-    python scripts/mazda6e_cli.py --email you@example.com --climate-on 21
-    python scripts/mazda6e_cli.py --email you@example.com --climate-off
-
-starts/stops remote climate (no PIN needed).
+Commands (the car must confirm them, like in the app):
+    lock | unlock                  asks for the 6-digit control PIN
+    climate on TEMP | climate off
+    charge-plan add HHMM HHMM | modify ID HHMM HHMM | delete ID | enable ID | disable ID
 """
 
 from __future__ import annotations
@@ -32,6 +36,7 @@ import types
 import uuid
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any
 
 import aiohttp
 
@@ -47,14 +52,14 @@ crypto = importlib.import_module("mazda6e.crypto")
 CACHE = Path.home() / ".mazda6e_cli.json"
 
 
-def _load_cache(email: str) -> dict:
+def _load_cache(email: str) -> dict[str, Any]:
     try:
         return json.loads(CACHE.read_text()).get(email.lower(), {})
     except (OSError, ValueError):
         return {}
 
 
-def _save_cache(email: str, data: dict) -> None:
+def _save_cache(email: str, data: dict[str, Any]) -> None:
     try:
         all_data = json.loads(CACHE.read_text())
     except (OSError, ValueError):
@@ -64,21 +69,139 @@ def _save_cache(email: str, data: dict) -> None:
     CACHE.chmod(0o600)
 
 
-async def main() -> None:
+def _dump(data: Any) -> str:
+    return json.dumps(data, indent=2, ensure_ascii=False, default=str)
+
+
+def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--email", required=True)
     parser.add_argument("--region", default="europe", choices=["europe", "asia"])
-    parser.add_argument("--raw", action="store_true", help="also print the raw JSON response")
-    action = parser.add_mutually_exclusive_group()
-    action.add_argument("--lock", action="store_true", help="lock the car")
-    action.add_argument("--unlock", action="store_true", help="unlock the car")
-    action.add_argument("--climate-on", type=float, metavar="TEMP", help="start climate at TEMP °C")
-    action.add_argument("--climate-off", action="store_true", help="stop climate")
-    args = parser.parse_args()
+    parser.add_argument("--vin", help="pick a car by (the end of) its VIN; default: the first car")
+    sub = parser.add_subparsers(dest="command", required=True)
 
+    sub.add_parser("login", help="log in and cache the tokens")
+    status = sub.add_parser("status", help="print the vehicle status")
+    status.add_argument("--raw", action="store_true", help="also print the raw JSON response")
+    probe = sub.add_parser("probe", help="query every known read endpoint")
+    probe.add_argument("--out", default="probe-output", help="directory for the raw answers")
+    call = sub.add_parser("call", help="raw authenticated POST")
+    call.add_argument("path")
+    call.add_argument("body", nargs="?", default="{}")
+
+    sub.add_parser("lock")
+    sub.add_parser("unlock")
+    climate = sub.add_parser("climate")
+    climate.add_argument("state", choices=["on", "off"])
+    climate.add_argument("temperature", nargs="?", type=float, default=21.0)
+
+    charge = sub.add_parser("charge-plan").add_subparsers(dest="action", required=True)
+    add = charge.add_parser("add")
+    add.add_argument("start", help="HHMM")
+    add.add_argument("end", help="HHMM")
+    modify = charge.add_parser("modify")
+    modify.add_argument("plan_id")
+    modify.add_argument("start", help="HHMM")
+    modify.add_argument("end", help="HHMM")
+    for name in ("delete", "enable", "disable"):
+        charge.add_parser(name).add_argument("plan_id")
+    return parser
+
+
+async def _login(client: Any, email: str) -> None:
+    password = getpass.getpass("Mazda password: ")
+    public_key, client.private_key = crypto.generate_key_pair()
+    if await client.login(email, password, public_key):
+        await client.request_device_code(email)
+        code = input(f"Verification code sent to {email}: ")
+        await client.verify_device_code(email, code)
+
+
+def _pick(vehicles: list[Any], vin: str | None) -> Any:
+    if not vin:
+        return vehicles[0]
+    for vehicle in vehicles:
+        if vehicle.vin.upper().endswith(vin.upper()):
+            return vehicle
+    raise SystemExit(f"No car with a VIN ending in {vin}")
+
+
+async def _probe(client: Any, vehicle: Any, out: Path) -> None:
+    """Query every known read endpoint and save the raw answers."""
+    out.mkdir(parents=True, exist_ok=True)
+    vid = vehicle.vehicle_id
+
+    def save(name: str, data: Any) -> None:
+        (out / f"{name}.json").write_text(_dump(data), encoding="utf-8")
+
+    raw_vehicles = await client.get_vehicles_raw()
+    save("vehicles", raw_vehicles)
+    raw_vehicle = next((v for v in raw_vehicles if v.get("vin") == vehicle.vin), {})
+    print("Vehicle fields the integration does not use yet:")
+    known = {"carId", "vehicleId", "vin", "modelName", "seriesName", "carName", "plateNumber"}
+    for key, value in sorted(raw_vehicle.items()):
+        if key not in known:
+            print(f"  {key:28} {value if not isinstance(value, (dict, list)) else _dump(value)}")
+    protocol = raw_vehicle.get("protocolType")
+    print(f"\nTelemetry protocol: {protocol!r}" + (" -> MQTT telemetry is worth a try" if protocol and str(protocol).upper() == "MQTT" else ""))
+
+    functions = await client.call("cma-app-user/api/vehicle/function-config", {"vehicleId": vid})
+    save("function_config", functions)
+    codes = ((functions.get("data") or {}).get("confList")) if isinstance(functions.get("data"), dict) else None
+    print(f"\nFunctions the car reports ({len(codes or [])}):")
+    for code in sorted(codes or []):
+        print(f"  {code}")
+
+    default = await client.get_status_raw(vid)
+    full = await client.get_status_raw(vid, {key: True for key in api.STATUS_CRITERIA})
+    save("condition_default", default)
+    save("condition_all_sections", full)
+    print("\nCondition sections that only appear when asked for:")
+    extra = {k: v for k, v in full.items() if k not in default}
+    if not extra:
+        print("  (none)")
+    for key, value in extra.items():
+        print(f"  {key}: {_dump(value)}")
+
+    for name, path, body in (
+        ("heating_plans", "cma-app-car-control/api/heating-plans/query/list", {"vehicleId": vid}),
+        ("pin_status", "cma-app-car-control/api/security-code/get-status", {}),
+    ):
+        answer = await client.call(path, body)
+        save(name, answer)
+        print(f"\n{name}: {_dump(answer.get('data') if answer.get('success') else answer)}")
+
+    print(f"\nRaw answers saved to {out.resolve()}")
+
+
+async def _run_command(client: Any, vehicle: Any, args: argparse.Namespace) -> Any:
+    vid = vehicle.vehicle_id
+    command = args.command
+    if command in ("lock", "unlock"):
+        pin = getpass.getpass("Control PIN (6 digits): ")
+        return await client.set_locked(vid, command == "lock", pin=pin)
+    if command == "climate":
+        return await client.set_climate(vid, args.state == "on", args.temperature)
+    if command == "charge-plan":
+        if args.action == "add":
+            return await client.add_charge_plan(vid, start=args.start, end=args.end)
+        if args.action == "modify":
+            status = await client.get_status_raw(vid)
+            plans = (status.get("charge") or {}).get("chargePlanList") or []
+            plan = next((p for p in plans if str(p.get("planId")) == args.plan_id), None)
+            if plan is None:
+                raise SystemExit(f"The car reports no charging plan {args.plan_id}")
+            return await client.set_charge_plan(vid, plan, start=args.start, end=args.end)
+        if args.action == "delete":
+            return await client.delete_charge_plan(vid, args.plan_id)
+        return await client.set_charge_plan_enabled(vid, args.plan_id, args.action == "enable")
+    raise SystemExit(f"Unknown command {command}")
+
+
+async def main() -> None:
+    args = _parser().parse_args()
     cache = _load_cache(args.email)
     device_id = cache.get("device_id") or str(uuid.uuid4())
-    private_key = cache.get("private_key")
 
     def remember(token: str, refresh: str) -> None:
         _save_cache(
@@ -88,6 +211,7 @@ async def main() -> None:
                 "token": token,
                 "refresh_token": refresh,
                 "private_key": client.private_key,
+                "user_id": client.user_id,
             },
         )
 
@@ -99,60 +223,55 @@ async def main() -> None:
             token=cache.get("token"),
             refresh_token=cache.get("refresh_token"),
             on_token_update=remember,
-            private_key=private_key,
+            private_key=cache.get("private_key"),
         )
+        client.user_id = cache.get("user_id")
 
-        try:
-            vehicles = await client.get_vehicles() if client.token else None
-        except api.MazdaAuthError:
-            vehicles = None
-
-        if vehicles is None:
-            password = getpass.getpass("Mazda password: ")
-            public_key, client.private_key = crypto.generate_key_pair()
-            if await client.login(args.email, password, public_key):
-                await client.request_device_code(args.email)
-                code = input(f"Verification code sent to {args.email}: ")
-                await client.verify_device_code(args.email, code)
+        if args.command == "login":
+            await _login(client, args.email)
+            remember(client.token, client.refresh_token)
             vehicles = await client.get_vehicles()
+            print(f"Logged in, {len(vehicles)} car(s): " + ", ".join(v.display_name for v in vehicles))
+            return
 
+        if not client.token:
+            raise SystemExit("Not logged in, run the login command first.")
+        try:
+            vehicles = await client.get_vehicles()
+        except api.MazdaAuthError as err:
+            raise SystemExit(f"Session no longer valid ({err}), run the login command again.") from err
         if not vehicles:
-            print("No vehicles on this account.")
+            raise SystemExit("No vehicles on this account.")
+
+        if args.command == "call":
+            print(_dump(await client.call(args.path, json.loads(args.body))))
             return
 
-        wants_climate = args.climate_on is not None or args.climate_off
-        if (args.lock or args.unlock or wants_climate) and not client.private_key:
-            print("No control key cached, delete ~/.mazda6e_cli.json and log in again.")
+        vehicle = _pick(vehicles, args.vin)
+        if args.command == "probe":
+            await _probe(client, vehicle, Path(args.out))
             return
-
-        if wants_climate:
-            vehicle = vehicles[0]
-            on = args.climate_on is not None
-            print(f"{'Starting' if on else 'Stopping'} climate for {vehicle.display_name} ...")
-            await client.set_climate(vehicle.vehicle_id, on, args.climate_on if on else 21.0)
-            print("Confirmed by the car.")
-            return
-
-        if args.lock or args.unlock:
-            vehicle = vehicles[0]
-            pin = getpass.getpass("Control PIN (6 digits): ")
-            print(f"{'Locking' if args.lock else 'Unlocking'} {vehicle.display_name} ...")
-            await client.set_locked(vehicle.vehicle_id, args.lock, pin=pin)
-            print("Confirmed by the car.")
-            return
-
-        for vehicle in vehicles:
-            print(f"\n=== {vehicle.display_name} (id {vehicle.vehicle_id}) ===")
+        if args.command == "status":
+            print(f"=== {vehicle.display_name} (id {vehicle.vehicle_id}) ===")
             status = await client.get_status(vehicle.vehicle_id)
             parsed = asdict(status)
             raw = parsed.pop("raw")
             for key, value in parsed.items():
                 print(f"  {key:26} {value}")
             print(f"  {'locked':26} {status.locked}")
-            print(f"  {'any_door_open':26} {status.any_door_open}")
             if args.raw:
-                print(json.dumps(raw, indent=2, ensure_ascii=False))
+                print(_dump(raw))
+            return
+
+        if not client.private_key:
+            raise SystemExit("No control key cached, run the login command again.")
+        print(f"Sending {args.command} to {vehicle.display_name} ...")
+        result = await _run_command(client, vehicle, args)
+        print("Confirmed by the car." + (f"\n{_dump(result)}" if result else ""))
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except api.MazdaError as err:
+        raise SystemExit(f"{type(err).__name__}: {err}") from err
