@@ -188,7 +188,22 @@
         "name": "Next pre-conditioning start"
       },
       "precondition_departure_temperature": {
-        "name": "Forecast at departure"
+        "name": "Forecast at departure",
+        "state_attributes": {
+          "forecast_type": {
+            "name": "Forecast",
+            "state": {
+              "hourly": "Hourly forecast",
+              "daily": "Day's low"
+            }
+          },
+          "plan": {
+            "name": "Plan"
+          },
+          "departure": {
+            "name": "Departure"
+          }
+        }
       }
     },
     "binary_sensor": {

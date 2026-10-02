@@ -1,0 +1,76 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please check the [Troubleshooting](https://github.com/ghostsailorgit/mazda6e_homeassistant#troubleshooting)
+        section first. Reports in German are welcome too.
+
+        **Never post your password, control PIN, tokens or full VIN.** The diagnostics
+        download redacts them for you.
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Integration version
+      placeholder: "0.8.3"
+    validations:
+      required: true
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+      placeholder: "2026.10.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: model
+    attributes:
+      label: Vehicle
+      options:
+        - Mazda 6e
+        - Mazda CX-6e
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: region
+    attributes:
+      label: Region (as chosen during setup)
+      options:
+        - Europe
+        - Asia/Pacific
+    validations:
+      required: true
+  - type: dropdown
+    id: account
+    attributes:
+      label: Account used by Home Assistant
+      description: Mazda allows only one active login per account (see README).
+      options:
+        - Separate account just for Home Assistant
+        - Same account as the phone app
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: |
+        Integration page → ⋮ → *Download diagnostics*, then drag the file here.
+        For wrong or missing values this is the most helpful piece of information.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Debug log
+      description: |
+        Relevant lines with `custom_components.mazda6e: debug` enabled (see README).
+      render: text

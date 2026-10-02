@@ -7,31 +7,57 @@ backend used by the official **"MAZDA 6e & CX-6e"** app and shows it in Home Ass
 
 > Unofficial, not supported by Mazda. The API is undocumented and can change at any time.
 
-## Background (research)
+## Compatibility
 
-The Mazda 6e is built on a Changan platform (Deepal SL03). The app therefore does
-**not** talk to the old MyMazda backend (the one used by `pymazda`), but to Changan's
-"CMA" gateway:
-
-| Region | Base URL |
+| | |
 | --- | --- |
-| Europe | `https://cma-m.iov.changanauto.com.de/cma-app-gw` |
-| Asia/Pacific | `https://cma.iov.changanauto.sg/cma-app-gw` |
+| Tested | Mazda 6e, region Europe, Home Assistant 2026.9 |
+| Should work, not tested yet | Mazda CX-6e (same app and cloud), region Asia/Pacific |
+| Requires | Home Assistant 2025.4 or newer, an account for the "MAZDA 6e & CX-6e" app |
 
-Flow, same as the app:
+If you use a CX-6e or the Asia/Pacific region, please
+[open an issue](https://github.com/ghostsailorgit/mazda6e_homeassistant/issues/new/choose)
+with the diagnostics download — even if everything works, so this table can be updated.
 
-1. `cma-app-auth/api/login/email-pass-in/v2` – email and password are encrypted with
-   an RSA key embedded in the app; the client also registers its own public key
-   (`pubKey`).
-2. For a new device (`emailVerify: true`), Mazda sends a code by email
-   (`send-email/device-login/send`), confirmed via `login-device/email-verify`.
-3. Vehicle list: `cma-app-user/api/car/vehicles` (or `vehicle/vehicles`)
-4. Status: `cma-app-car-condition/api/vehicle/condition/v2`
-5. Token refresh: `cma-app-auth/api/auth/refresh-token`
+## Installation
 
-The protocol details come from the existing community projects
-[fano0001/home-assistant-mazda-6e](https://github.com/fano0001/home-assistant-mazda-6e) (Apache-2.0)
-and [Sunek0/ha-mazda-6e-cx6](https://github.com/Sunek0/ha-mazda-6e-cx6) (MIT).
+### HACS (custom repository)
+
+1. HACS → Integrations → ⋮ → *Custom repositories* →
+   `https://github.com/ghostsailorgit/mazda6e_homeassistant`, category *Integration*.
+2. Install "Mazda 6e", restart Home Assistant.
+
+Once the integration is included in the HACS default list, step 1 is no longer
+needed: just search for "Mazda 6e" in HACS.
+
+### Manual
+
+Copy the `custom_components/mazda6e` folder into `<config>/custom_components/` and
+restart Home Assistant.
+
+## Setup
+
+*Settings → Devices & Services → Add Integration → Mazda 6e*
+
+1. Enter email, password, and region (the same credentials as the app).
+2. Mazda sends a **confirmation code by email** — enter it.
+
+The password is not stored, only the tokens and the control key. Under *Configure*
+you can set the polling interval (default: 5 minutes).
+
+> Mazda only allows one active login per account: if Home Assistant logs in, the
+> phone app gets logged out (and vice versa). The fix is a **second account just for
+> Home Assistant**:
+>
+> 1. Create a new account in the app with a different email address.
+> 2. With your main account, open the vehicle in the app, tap *Share*, and invite
+>    the new account.
+> 3. Log in to the app with the new account and accept the vehicle share.
+> 4. Set up a separate control PIN on the new account (e.g. by trying to open a
+>    window — the app will then ask for one). The PIN belongs to the account; your
+>    main account's PIN doesn't apply to the second account.
+> 5. Switch the app back to your main account. From now on, only Home Assistant
+>    uses the second account.
 
 ## What it shows
 
@@ -251,54 +277,6 @@ automation:
           message: "Pre-conditioning failed: {{ trigger.event.data.failed | join(', ') }}"
 ```
 
-### Protocol uncertainties
-
-The two reference projects disagree on a few details; this is what's implemented:
-
-- Honk/flash: `type` 1 = light only, 3 = light + horn (per Sunek0; fano uses 1 for
-  "find my car") — hence two separate buttons
-- Windows: with `openType: 10` (Sunek0)
-- Signature: no empty `rcToken` for commands that don't need a PIN
-
-If any of this doesn't work on your actual car, please report it with a debug log.
-
-## Installation
-
-### HACS (custom repository)
-
-1. HACS → Integrations → ⋮ → *Custom repositories* →
-   `https://github.com/ghostsailorgit/mazda6e_homeassistant`, category *Integration*.
-2. Install "Mazda 6e", restart Home Assistant.
-
-### Manual
-
-Copy the `custom_components/mazda6e` folder into `<config>/custom_components/` and
-restart Home Assistant.
-
-## Setup
-
-*Settings → Devices & Services → Add Integration → Mazda 6e*
-
-1. Enter email, password, and region (the same credentials as the app).
-2. Mazda sends a **confirmation code by email** — enter it.
-
-The password is not stored, only the tokens and the control key. Under *Configure*
-you can set the polling interval (default: 5 minutes).
-
-> Mazda only allows one active login per account: if Home Assistant logs in, the
-> phone app gets logged out (and vice versa). The fix is a **second account just for
-> Home Assistant**:
->
-> 1. Create a new account in the app with a different email address.
-> 2. With your main account, open the vehicle in the app, tap *Share*, and invite
->    the new account.
-> 3. Log in to the app with the new account and accept the vehicle share.
-> 4. Set up a separate control PIN on the new account (e.g. by trying to open a
->    window — the app will then ask for one). The PIN belongs to the account; your
->    main account's PIN doesn't apply to the second account.
-> 5. Switch the app back to your main account. From now on, only Home Assistant
->    uses the second account.
-
 ## Testing an account without Home Assistant
 
 ```bash
@@ -330,6 +308,45 @@ Logging in here logs out the app or Home Assistant if they use the same account.
   ```
 - *Download diagnostics* on the integration page gives you the vehicle's raw data
   (VIN and tokens are redacted). Handy for mapping unknown fields.
+- Still stuck? [Open an issue](https://github.com/ghostsailorgit/mazda6e_homeassistant/issues/new/choose)
+  with the diagnostics file attached — never post your password, PIN or tokens.
+
+## Background (research)
+
+The Mazda 6e is built on a Changan platform (Deepal SL03). The app therefore does
+**not** talk to the old MyMazda backend (the one used by `pymazda`), but to Changan's
+"CMA" gateway:
+
+| Region | Base URL |
+| --- | --- |
+| Europe | `https://cma-m.iov.changanauto.com.de/cma-app-gw` |
+| Asia/Pacific | `https://cma.iov.changanauto.sg/cma-app-gw` |
+
+Flow, same as the app:
+
+1. `cma-app-auth/api/login/email-pass-in/v2` – email and password are encrypted with
+   an RSA key embedded in the app; the client also registers its own public key
+   (`pubKey`).
+2. For a new device (`emailVerify: true`), Mazda sends a code by email
+   (`send-email/device-login/send`), confirmed via `login-device/email-verify`.
+3. Vehicle list: `cma-app-user/api/car/vehicles` (or `vehicle/vehicles`)
+4. Status: `cma-app-car-condition/api/vehicle/condition/v2`
+5. Token refresh: `cma-app-auth/api/auth/refresh-token`
+
+The protocol details come from the existing community projects
+[fano0001/home-assistant-mazda-6e](https://github.com/fano0001/home-assistant-mazda-6e) (Apache-2.0)
+and [Sunek0/ha-mazda-6e-cx6](https://github.com/Sunek0/ha-mazda-6e-cx6) (MIT).
+
+### Protocol uncertainties
+
+The two reference projects disagree on a few details; this is what's implemented:
+
+- Honk/flash: `type` 1 = light only, 3 = light + horn (per Sunek0; fano uses 1 for
+  "find my car") — hence two separate buttons
+- Windows: with `openType: 10` (Sunek0)
+- Signature: no empty `rcToken` for commands that don't need a PIN
+
+If any of this doesn't work on your actual car, please report it with a debug log.
 
 ## Development
 
