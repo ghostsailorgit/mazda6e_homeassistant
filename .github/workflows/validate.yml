@@ -13,15 +13,14 @@ jobs:
 
   hacs:
     # HACS reads hacs.json and manifest.json anonymously from
-    # raw.githubusercontent.com and only supports public repositories, so the
-    # check can only pass once the repository is public.
+    # raw.githubusercontent.com and only supports public repositories.
+    # The HACS default list requires this check without any ignored checks.
     if: ${{ !github.event.repository.private }}
     runs-on: ubuntu-latest
     steps:
       - uses: hacs/action@main
         with:
           category: integration
-          ignore: brands
 
   tests:
     runs-on: ubuntu-latest
