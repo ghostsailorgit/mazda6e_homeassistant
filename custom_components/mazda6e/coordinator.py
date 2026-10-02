@@ -61,6 +61,8 @@ class Mazda6eCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]):
         self._functions: dict[str, set[str]] = {}
         # vehicle_id -> Preconditioner, filled in async_setup_entry
         self.preconditioners: dict[str, Preconditioner] = {}
+        # departure plan subentry id -> title, as the entities were set up
+        self.plan_titles: dict[str, str] = {}
 
     async def _async_update_data(self) -> dict[str, VehicleData]:
         try:

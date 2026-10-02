@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -10,11 +10,12 @@ from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityDescription
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
 from .api import MazdaAuthError, MazdaError, MazdaPinError
-from .const import CONF_CONTROL_PRIVATE_KEY, DOMAIN
+from .const import CONF_CONTROL_PRIVATE_KEY, DOMAIN, PLAN_VEHICLE, SUBENTRY_PLAN
 from .coordinator import Mazda6eConfigEntry, Mazda6eCoordinator, VehicleData
 from .models import VehicleStatus
 from .precondition import Preconditioner
@@ -165,3 +166,51 @@ def plan_entities(
         for vehicle_id, preconditioner in coordinator.preconditioners.items()
         for entity in factory(vehicle_id, preconditioner)
     ]
+
+
+class Mazda6eDeparturePlanEntity(Mazda6ePlanEntity):
+    """On/off, time or temperature of one departure plan (a config subentry)."""
+
+    def __init__(
+        self,
+        coordinator: Mazda6eCoordinator,
+        vehicle_id: str,
+        description: EntityDescription,
+        preconditioner: Preconditioner,
+        subentry_id: str,
+    ) -> None:
+        super().__init__(coordinator, vehicle_id, description, preconditioner)
+        self._subentry_id = subentry_id
+        self._attr_translation_placeholders = {
+            "plan": coordinator.config_entry.subentries[subentry_id].title
+        }
+
+    @property
+    def plan_data(self) -> Mapping[str, Any]:
+        return self.coordinator.config_entry.subentries[self._subentry_id].data
+
+    @callback
+    def update_plan(self, **changes: Any) -> None:
+        """Store a change; the entry's update listener plans again."""
+        entry = self.coordinator.config_entry
+        subentry = entry.subentries[self._subentry_id]
+        self.hass.config_entries.async_update_subentry(entry, subentry, data={**subentry.data, **changes})
+
+
+def add_departure_plan_entities(
+    entry: Mazda6eConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+    factory: Callable[[str, Preconditioner, str], list[Any]],
+) -> None:
+    """Add the entities of every departure plan, attached to its subentry."""
+    coordinator = entry.runtime_data
+    for subentry_id, subentry in entry.subentries.items():
+        if subentry.subentry_type != SUBENTRY_PLAN:
+            continue
+        preconditioner = coordinator.preconditioners.get(subentry.data.get(PLAN_VEHICLE))
+        if preconditioner is None:
+            continue
+        async_add_entities(
+            factory(preconditioner.vehicle_id, preconditioner, subentry_id),
+            config_subentry_id=subentry_id,
+        )

@@ -130,36 +130,47 @@ that) — they only work with a stored control PIN, otherwise you get an error.
 Additional sensors: interior humidity and PM2.5, lights (low/high beam, position
 lights, turn indicators — disabled by default).
 
-## Pre-conditioning with a weekly schedule
+## Pre-conditioning with departure plans
 
-The integration can preheat or precool the car before departure — on a **weekly
-schedule with its own departure time per day** and/or triggered by **any Home
-Assistant trigger**. The schedule lives in Home Assistant (not in the car) and still
-works if the cloud is briefly unreachable.
+The integration can preheat or precool the car before departure — with **as many
+departure plans as you need** and/or triggered by **any Home Assistant trigger**.
+The plans live in Home Assistant (not in the car) and still work if the cloud is
+briefly unreachable.
 
-**Profile** (what happens during pre-conditioning, all under *Configure* on the device):
+**Departure plans:** *Settings → Devices & Services → Mazda 6e → Add departure plan*.
+Each plan has a name, a departure time, the weekdays it applies to and its own
+temperature — e.g. "Work, 07:30, Mon–Fri, 21 °C" and "Gym, 17:00, Tue+Thu, 19 °C".
+Several plans may fall on the same day. Each plan gets three entities for the
+dashboard: a switch (*Departure plan Work*), its time (*Departure Work*) and its
+temperature (*Temperature Work*); the weekdays are changed with *Reconfigure* on the
+plan. The main switch *Pre-conditioning departure plans* turns all plans on or off.
 
-- *Pre-conditioning temperature* (16–30 °C)
+**Profile** (shared by all plans, under *Configure* on the device):
+
+- *Pre-conditioning temperature* (16–30 °C) — used when starting with the button or
+  the service; plans use their own temperature
 - *Pre-conditioning lead time* (5–30 min) — how long before departure it starts;
   climate control runs for exactly that long
 - *Pre-conditioning: seat heating* (driver's seat, off/1–3)
 - *Pre-conditioning: steering wheel heating*, *…: defrost*
 - *Pre-conditioning: battery preheating* — always sets the car's own battery preheat
-  plan to the next scheduled departure (the battery needs more lead time, which the
+  plan to the next planned departure (the battery needs more lead time, which the
   car manages itself)
 - *Pre-conditioning: weather source* — pick a `weather.*` entity to only pre-condition
   when needed; *off* (default) always pre-conditions
-- *Pre-conditioning: minimum temperature* — with a weather source selected, the
-  schedule only runs if the hourly forecast for the departure time is below this
-  value. A weather lookup that fails (integration hiccup, no forecast data) never
-  blocks pre-conditioning — it runs as if no threshold were set
-
-**Weekly schedule:** switch *Pre-conditioning weekly plan* (main switch), plus one
-switch *Pre-conditioning Monday…Sunday* and one time *Departure Monday…Sunday* per
-weekday. Default: Mon–Fri 07:30, weekend off.
+- *Pre-conditioning: minimum temperature* — with a weather source selected, a plan
+  only runs if the hourly forecast for the departure time is below this value. A
+  weather lookup that fails (integration hiccup, no forecast data) never blocks
+  pre-conditioning — it runs as if no threshold were set
 
 **Display:** *Next departure* and *Next pre-conditioning start* (timestamps; the
-attributes also show the last run and any failed steps).
+attributes show the plan, the last run and any failed steps).
+
+> **Upgrading from 0.7 or older:** the per-weekday switches and times are replaced by
+> departure plans. Your settings are converted automatically (days with the same
+> time become one plan, e.g. "07:30, Tue–Fri"); dashboards and automations that used
+> the old *Pre-conditioning Monday…* / *Departure Monday…* entities have to be
+> updated. Requires Home Assistant 2025.4 or newer.
 
 **Buttons:** *Start pre-conditioning* / *stop* (immediately, with the profile) and
 *Skip next departure* (e.g. public holiday, working from home).
@@ -170,12 +181,12 @@ attributes also show the last run and any failed steps).
 | --- | --- |
 | `mazda6e.start_preconditioning` | pre-condition now; optional `temperature`, `duration`, `seat_heat` (0–3), `steering_wheel`, `defrost`, `battery` — empty fields use the profile |
 | `mazda6e.stop_preconditioning` | turns off climate, seat/steering wheel heating, and defrost |
-| `mazda6e.skip_next_departure` | skip the weekly schedule's next departure |
+| `mazda6e.skip_next_departure` | skip the next departure of the departure plans |
 
 `device_id` is only needed with multiple cars. `start_preconditioning` returns the
 failed steps (`failed`) in its response. Every run fires the `mazda6e_preconditioning`
-event (`action`: `started`/`stopped`, `source`: `schedule`/`service`/`button`,
-`departure`, `failed`).
+event (`action`: `started`/`stopped`/`skipped`, `source`: `schedule`/`service`/`button`,
+`departure`, `plan`, `failed`).
 
 Example: preheat based on your calendar, only when it's cold
 
@@ -201,7 +212,7 @@ automation:
           defrost: true
 ```
 
-Example: suspend the weekly schedule on public holidays and while on vacation
+Example: skip the departure plans on public holidays
 
 ```yaml
 automation:

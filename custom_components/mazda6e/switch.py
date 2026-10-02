@@ -12,9 +12,17 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .api import Mazda6eClient
+from .const import PLAN_ENABLED
 from .coordinator import Mazda6eConfigEntry, VehicleData
-from .entity import Mazda6eControlEntity, Mazda6ePlanEntity, has_control, plan_entities
-from .precondition import WEEKDAYS, Preconditioner
+from .entity import (
+    Mazda6eControlEntity,
+    Mazda6eDeparturePlanEntity,
+    Mazda6ePlanEntity,
+    add_departure_plan_entities,
+    has_control,
+    plan_entities,
+)
+from .precondition import Preconditioner
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -73,15 +81,6 @@ PLAN_SWITCHES: dict[str, SwitchEntityDescription] = {
 }
 
 
-def _day_switch(day: str) -> SwitchEntityDescription:
-    return SwitchEntityDescription(
-        key=f"precondition_{day}",
-        translation_key=f"precondition_{day}",
-        icon="mdi:calendar-today",
-        entity_category=EntityCategory.CONFIG,
-    )
-
-
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: Mazda6eConfigEntry,
@@ -101,15 +100,28 @@ async def async_setup_entry(
 
     def plan(vid: str, preconditioner: Preconditioner) -> list[SwitchEntity]:
         data: VehicleData = coordinator.data[vid]
-        result: list[SwitchEntity] = [
+        return [
             Mazda6ePlanSwitch(coordinator, vid, description, preconditioner, setting)
             for setting, description in PLAN_SWITCHES.items()
             if setting != "battery" or data.battery_preheat_plan is not None
         ]
-        result.extend(Mazda6eDaySwitch(coordinator, vid, _day_switch(day), preconditioner, day) for day in WEEKDAYS)
-        return result
 
     async_add_entities(plan_entities(entry, plan))
+    add_departure_plan_entities(
+        entry,
+        async_add_entities,
+        lambda vid, p, subentry_id: [
+            Mazda6eDeparturePlanSwitch(
+                coordinator,
+                vid,
+                SwitchEntityDescription(
+                    key=f"departure_plan_{subentry_id}", translation_key="departure_plan", icon="mdi:car-clock"
+                ),
+                p,
+                subentry_id,
+            )
+        ],
+    )
 
 
 class Mazda6eSwitch(Mazda6eControlEntity, SwitchEntity):
@@ -200,17 +212,13 @@ class Mazda6ePlanSwitch(Mazda6ePlanEntity, SwitchEntity):
         await self.preconditioner.async_update(**{self._setting: False})
 
 
-class Mazda6eDaySwitch(Mazda6ePlanEntity, SwitchEntity):
-    def __init__(self, coordinator, vehicle_id, description, preconditioner, day: str) -> None:
-        super().__init__(coordinator, vehicle_id, description, preconditioner)
-        self._day = day
-
+class Mazda6eDeparturePlanSwitch(Mazda6eDeparturePlanEntity, SwitchEntity):
     @property
     def is_on(self) -> bool:
-        return self.preconditioner.settings["days"][self._day]["on"]
+        return bool(self.plan_data[PLAN_ENABLED])
 
     async def async_turn_on(self, **kwargs: Any) -> None:
-        await self.preconditioner.async_update(day=self._day, on=True)
+        self.update_plan(**{PLAN_ENABLED: True})
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        await self.preconditioner.async_update(day=self._day, on=False)
+        self.update_plan(**{PLAN_ENABLED: False})

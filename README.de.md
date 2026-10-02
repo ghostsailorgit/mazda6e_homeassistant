@@ -134,16 +134,26 @@ Fehlermeldung.
 Zusätzliche Sensoren: Luftfeuchte und Feinstaub im Innenraum, Lichter
 (Abblend-/Fernlicht, Standlicht, Blinker – standardmäßig deaktiviert).
 
-## Vorklimatisierung mit Wochenplan
+## Vorklimatisierung mit Abfahrtsplänen
 
-Die Integration kann das Auto vor der Abfahrt vorheizen oder vorkühlen – nach einem
-**Wochenplan mit eigener Abfahrtszeit pro Tag** und/oder ausgelöst durch **beliebige
-Home-Assistant-Trigger**. Der Plan liegt in Home Assistant (nicht im Auto) und
-funktioniert auch, wenn die Cloud kurz nicht erreichbar ist.
+Die Integration kann das Auto vor der Abfahrt vorheizen oder vorkühlen – mit **beliebig
+vielen Abfahrtsplänen** und/oder ausgelöst durch **beliebige Home-Assistant-Trigger**.
+Die Pläne liegen in Home Assistant (nicht im Auto) und funktionieren auch, wenn die
+Cloud kurz nicht erreichbar ist.
 
-**Profil** (was beim Vorklimatisieren passiert, alles unter *Konfiguration* am Gerät):
+**Abfahrtspläne:** *Einstellungen → Geräte & Dienste → Mazda 6e → Abfahrtsplan
+hinzufügen*. Jeder Plan hat einen Namen, eine Abfahrtszeit, die Wochentage und eine
+eigene Temperatur – z. B. „Arbeit, 07:30, Mo–Fr, 21 °C" und „Training, 17:00, Di+Do,
+19 °C". Mehrere Pläne am selben Tag sind möglich. Pro Plan gibt es drei Entitäten
+fürs Dashboard: einen Schalter (*Abfahrtsplan Arbeit*), die Uhrzeit (*Abfahrt
+Arbeit*) und die Temperatur (*Temperatur Arbeit*); die Wochentage ändert man über
+*Neu konfigurieren* am Plan. Der Hauptschalter *Vorklimatisierung Abfahrtspläne*
+schaltet alle Pläne ein oder aus.
 
-- *Vorklimatisierung Temperatur* (16–30 °C)
+**Profil** (für alle Pläne gemeinsam, unter *Konfiguration* am Gerät):
+
+- *Vorklimatisierung Temperatur* (16–30 °C) – für den Start per Knopf oder Service;
+  Pläne nutzen ihre eigene Temperatur
 - *Vorklimatisierung Vorlaufzeit* (5–30 min) – so lange vor der Abfahrt wird gestartet,
   die Klimatisierung läuft genau so lange
 - *Vorklimatisierung: Sitzheizung* (Fahrersitz, Aus/1–3)
@@ -152,17 +162,19 @@ funktioniert auch, wenn die Cloud kurz nicht erreichbar ist.
   nächste geplante Abfahrt (der Akku braucht mehr Vorlauf, das regelt das Auto selbst)
 - *Vorklimatisierung: Wetterquelle* – wähle eine `weather.*`-Entität, um nur bei Bedarf
   vorzuklimatisieren; *Aus* (Standard) klimatisiert immer vor
-- *Vorklimatisierung: Mindesttemperatur* – ist eine Wetterquelle gewählt, läuft der
-  Wochenplan nur, wenn die stündliche Vorhersage für die Abfahrtszeit unter diesem Wert
+- *Vorklimatisierung: Mindesttemperatur* – ist eine Wetterquelle gewählt, läuft ein
+  Plan nur, wenn die stündliche Vorhersage für die Abfahrtszeit unter diesem Wert
   liegt. Schlägt die Wetterabfrage fehl (Integrationsaussetzer, keine Vorhersagedaten),
   wird trotzdem vorklimatisiert – ein Fehler blockiert nie das Vorheizen
 
-**Wochenplan:** Schalter *Vorklimatisierung Wochenplan* (Hauptschalter), dazu pro
-Wochentag ein Schalter *Vorklimatisierung Montag…Sonntag* und eine Uhrzeit
-*Abfahrt Montag…Sonntag*. Standard: Mo–Fr 07:30, Wochenende aus.
-
 **Anzeige:** *Nächste Abfahrt* und *Nächster Vorklimatisierungsstart* (Zeitstempel; die
-Attribute zeigen außerdem den letzten Lauf und fehlgeschlagene Schritte).
+Attribute zeigen den Plan, den letzten Lauf und fehlgeschlagene Schritte).
+
+> **Update von 0.7 oder älter:** Die Schalter und Uhrzeiten pro Wochentag werden durch
+> Abfahrtspläne ersetzt. Deine Einstellungen werden automatisch umgewandelt (Tage mit
+> gleicher Uhrzeit werden ein Plan, z. B. „07:30, Di–Fr"); Dashboards und Automationen,
+> die die alten Entitäten *Vorklimatisierung Montag…* / *Abfahrt Montag…* nutzen, müssen
+> angepasst werden. Benötigt Home Assistant 2025.4 oder neuer.
 
 **Knöpfe:** *Vorklimatisierung starten* / *stoppen* (sofort, mit dem Profil) und
 *Nächste Abfahrt überspringen* (z. B. Feiertag, Homeoffice).
@@ -173,12 +185,12 @@ Attribute zeigen außerdem den letzten Lauf und fehlgeschlagene Schritte).
 | --- | --- |
 | `mazda6e.start_preconditioning` | jetzt vorklimatisieren; optional `temperature`, `duration`, `seat_heat` (0–3), `steering_wheel`, `defrost`, `battery` – leere Felder nehmen das Profil |
 | `mazda6e.stop_preconditioning` | Klima, Sitz-/Lenkradheizung und Enteisen aus |
-| `mazda6e.skip_next_departure` | nächste Abfahrt des Wochenplans auslassen |
+| `mazda6e.skip_next_departure` | nächste Abfahrt der Abfahrtspläne auslassen |
 
 `device_id` ist nur bei mehreren Autos nötig. `start_preconditioning` liefert als Antwort
 die fehlgeschlagenen Schritte (`failed`). Jeder Lauf löst das Event
-`mazda6e_preconditioning` aus (`action`: `started`/`stopped`, `source`:
-`schedule`/`service`/`button`, `departure`, `failed`).
+`mazda6e_preconditioning` aus (`action`: `started`/`stopped`/`skipped`, `source`:
+`schedule`/`service`/`button`, `departure`, `plan`, `failed`).
 
 Beispiel: nach dem Kalender vorheizen, nur wenn es kalt ist
 
@@ -204,7 +216,7 @@ automation:
           defrost: true
 ```
 
-Beispiel: Wochenplan an Feiertagen und im Urlaub aussetzen
+Beispiel: Abfahrtspläne an Feiertagen aussetzen
 
 ```yaml
 automation:

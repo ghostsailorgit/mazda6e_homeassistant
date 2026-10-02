@@ -17,8 +17,16 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .api import CHARGE_LIMIT_MAX, CHARGE_LIMIT_MIN, CLIMATE_MAX_TEMP, CLIMATE_MIN_TEMP
+from .const import PLAN_TEMPERATURE
 from .coordinator import Mazda6eConfigEntry
-from .entity import Mazda6eControlEntity, Mazda6ePlanEntity, has_control, plan_entities
+from .entity import (
+    Mazda6eControlEntity,
+    Mazda6eDeparturePlanEntity,
+    Mazda6ePlanEntity,
+    add_departure_plan_entities,
+    has_control,
+    plan_entities,
+)
 from .precondition import LEAD_MAX, LEAD_MIN
 
 CHARGE_LIMIT = NumberEntityDescription(
@@ -88,6 +96,29 @@ async def async_setup_entry(
             ],
         )
     )
+    add_departure_plan_entities(
+        entry,
+        async_add_entities,
+        lambda vid, p, subentry_id: [
+            Mazda6eDeparturePlanTemperature(
+                coordinator,
+                vid,
+                NumberEntityDescription(
+                    key=f"departure_plan_{subentry_id}_temperature",
+                    translation_key="departure_plan_temperature",
+                    icon="mdi:thermometer",
+                    native_min_value=CLIMATE_MIN_TEMP,
+                    native_max_value=CLIMATE_MAX_TEMP,
+                    native_step=0.5,
+                    native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+                    mode=NumberMode.BOX,
+                    entity_category=EntityCategory.CONFIG,
+                ),
+                p,
+                subentry_id,
+            )
+        ],
+    )
 
 
 class Mazda6eChargeLimit(Mazda6eControlEntity, NumberEntity):
@@ -116,3 +147,12 @@ class Mazda6ePlanNumber(Mazda6ePlanEntity, NumberEntity):
         if self._setting == "lead":
             value = int(value)
         await self.preconditioner.async_update(**{self._setting: value})
+
+
+class Mazda6eDeparturePlanTemperature(Mazda6eDeparturePlanEntity, NumberEntity):
+    @property
+    def native_value(self) -> float:
+        return float(self.plan_data[PLAN_TEMPERATURE])
+
+    async def async_set_native_value(self, value: float) -> None:
+        self.update_plan(**{PLAN_TEMPERATURE: value})
