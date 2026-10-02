@@ -152,13 +152,20 @@ laut seiner Funktionsliste (`function-config`) nicht hat, werden nicht angelegt.
 | Regler **Ladelimit einstellen** | 60–100 % | – |
 | Auswahl **Sitzheizung / Sitzlüftung Fahrer & Beifahrer** | Aus, Stufe 1–3 | – |
 | Schalter **Lenkradheizung**, **Frontscheibe enteisen** | an/aus | – |
-| Abdeckung **Fenster**, **Heckklappe** | öffnen/schließen | gespeicherte PIN nötig |
+| Abdeckung **Fenster lüften**, **Heckklappe** | öffnen/schließen | gespeicherte PIN nötig |
 | Schalter + Uhrzeit **Akku vorheizen (Plan im Auto)** | der Vorheizplan, den auch die App zeigt | – |
 | Schalter + Start/Ende **Ladezeitplan (Plan im Auto)** | der Ladeplan aus der App (nur wenn einer existiert) | – |
 
 Fenster und Heckklappe fragen in Home Assistant keine PIN ab (Abdeckungen können das
 nicht) – sie funktionieren nur mit gespeicherter Steuer-PIN, sonst kommt eine
 Fehlermeldung.
+
+> **Fenster öffnen nur einen Spalt.** Über Mazdas Cloud bietet das Auto nur die
+> Lüftungsstellung: Die vorderen Fenster gehen etwa 10 % auf. Alle Fenster ganz
+> öffnen und den Heckspoiler aus- und einfahren geht nur per Bluetooth (digitaler
+> Schlüssel der App, Funktionscodes `#windowOpenBT` / `#SpoilerRaiseLowerBT`) – auch
+> die App öffnet ohne Bluetooth-Verbindung zum Auto nur einen Spalt und blendet den
+> Spoiler-Knopf aus. Home Assistant kann das nicht.
 
 Zusätzliche Sensoren: Luftfeuchte und Feinstaub im Innenraum, Lichter
 (Abblend-/Fernlicht, Standlicht, Blinker – standardmäßig deaktiviert).
@@ -355,8 +362,9 @@ Die beiden Referenzprojekte unterscheiden sich an einigen Stellen; umgesetzt ist
 
 - Hupen/Blinken: `type` 1 = nur Licht, 3 = Licht + Hupe (laut Sunek0; fano nutzt 1 für
   „Auto finden“) – daher zwei Knöpfe
-- Fenster: ohne `openType` (fano). Mit `openType: 10` (Sunek0) lehnt ein Mazda 6e in
-  Europa den Befehl mit „The Controller Is Not Responding“ ab
+- Fenster: ohne `openType` (fano). Mit jedem probierten `openType` (0–11, 20, 50, 99–101, 255, -1, auch Sunek0s 10)
+  lehnt ein Mazda 6e in Europa das Öffnen mit „The Controller Is Not Responding“ ab.
+  Die Listen `windows`/`openDegree` im Status nennen die hinteren Fenster zuerst
 - Signatur: ohne leeres `rcToken` bei Befehlen ohne PIN
 
 Falls etwas davon am echten Auto nicht klappt, bitte mit Debug-Log melden.

@@ -148,12 +148,19 @@ doesn't have (per its `function-config` feature list) are not created.
 | Slider **Set charge limit** | 60–100 % | – |
 | Select **Seat heating / seat ventilation driver & passenger** | off, level 1–3 | – |
 | Switch **Steering wheel heating**, **Defrost windscreen** | on/off | – |
-| Cover **Windows**, **Tailgate** | open/close | stored PIN required |
+| Cover **Windows ventilation**, **Tailgate** | open/close | stored PIN required |
 | Switch + time **Battery preheating (car plan)** | the preheat plan also shown in the app | – |
 | Switch + start/end **Charging schedule (car plan)** | the charging plan from the app (only if one exists) | – |
 
 Windows and the tailgate don't prompt for a PIN in Home Assistant (covers can't do
 that) — they only work with a stored control PIN, otherwise you get an error.
+
+> **Windows only open a gap.** Over Mazda's cloud the car only offers the
+> ventilation position: the front windows open to about 10 %. Opening all windows
+> fully and raising/lowering the rear spoiler only work over Bluetooth (the app's
+> digital key, function codes `#windowOpenBT` / `#SpoilerRaiseLowerBT`) — the app
+> also only opens a gap and hides the spoiler button when the phone isn't connected
+> to the car. Home Assistant cannot do this.
 
 Additional sensors: interior humidity and PM2.5, lights (low/high beam, position
 lights, turn indicators — disabled by default).
@@ -348,8 +355,9 @@ The two reference projects disagree on a few details; this is what's implemented
 
 - Honk/flash: `type` 1 = light only, 3 = light + horn (per Sunek0; fano uses 1 for
   "find my car") — hence two separate buttons
-- Windows: without `openType` (fano). With `openType: 10` (Sunek0) a Mazda 6e in
-  Europe rejects the command with "The Controller Is Not Responding"
+- Windows: without `openType` (fano). With every `openType` tried (0–11, 20, 50, 99–101, 255, -1, incl. Sunek0's
+  10) a Mazda 6e in Europe rejects opening with "The Controller Is Not Responding".
+  The `windows`/`openDegree` arrays of the status list the rear windows first
 - Signature: no empty `rcToken` for commands that don't need a PIN
 
 If any of this doesn't work on your actual car, please report it with a debug log.
