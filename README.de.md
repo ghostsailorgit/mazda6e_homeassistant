@@ -167,6 +167,13 @@ Fehlermeldung.
 > die App öffnet ohne Bluetooth-Verbindung zum Auto nur einen Spalt und blendet den
 > Spoiler-Knopf aus. Home Assistant kann das nicht.
 
+> **Gut zu wissen: das Ladelimit.** Die Mazda-App hat kein Ladelimit; die
+> Integration nutzt den Endpunkt `charge/percentage` (`chargePercentageMax`). Der
+> Bereich 60–100 % des Reglers ist der echte: An einem Auto getestet (Oktober
+> 2026) lehnt das Auto 55 und 59 mit `COMMON_1_1_01_005 Operation Failed` ab, nimmt
+> 61 an und meldet es als `maxSocPercent` zurück (1-%-Schritte). Auch die
+> Bedienungsanleitung (S. 3-21) nennt 60–100 %.
+
 Zusätzliche Sensoren: Luftfeuchte und Feinstaub im Innenraum, Lichter
 (Abblend-/Fernlicht, Standlicht, Blinker – standardmäßig deaktiviert).
 

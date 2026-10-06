@@ -162,6 +162,13 @@ that) — they only work with a stored control PIN, otherwise you get an error.
 > also only opens a gap and hides the spoiler button when the phone isn't connected
 > to the car. Home Assistant cannot do this.
 
+> **Good to know: the charge limit.** The Mazda app has no charge limit; the
+> integration uses the endpoint `charge/percentage` (`chargePercentageMax`). The
+> 60–100 % range of the slider is the real one: tested on a car (October 2026),
+> the car rejects 55 and 59 with `COMMON_1_1_01_005 Operation Failed`, accepts 61
+> and reports it back as `maxSocPercent` (1 % steps). The owner's manual
+> (p. 3-21) also gives 60–100 %.
+
 Additional sensors: interior humidity and PM2.5, lights (low/high beam, position
 lights, turn indicators — disabled by default).
 
