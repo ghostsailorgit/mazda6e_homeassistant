@@ -71,8 +71,8 @@
             "weekdays": "Wochentage",
             "temperature": "Temperatur",
             "vehicle_id": "Auto",
-            "frost": "Frostschutz",
-            "frost_below": "Frostschutz-Schwelle"
+            "frost": "Frostschutz: bei Kälte Frontscheibe enteisen und Lenkrad heizen",
+            "frost_below": "Frostschutz ab (Vorhersage zur Abfahrt, °C)"
           },
           "data_description": {
             "frost": "Zusätzlich die Frontscheibe enteisen und die Lenkradheizung einschalten, wenn die Vorhersage zur Abfahrt die Schwelle erreicht oder unterschreitet. Braucht eine Wetterquelle für die Vorklimatisierung.",
@@ -86,8 +86,8 @@
             "time": "Abfahrtszeit",
             "weekdays": "Wochentage",
             "temperature": "Temperatur",
-            "frost": "Frostschutz",
-            "frost_below": "Frostschutz-Schwelle"
+            "frost": "Frostschutz: bei Kälte Frontscheibe enteisen und Lenkrad heizen",
+            "frost_below": "Frostschutz ab (Vorhersage zur Abfahrt, °C)"
           },
           "data_description": {
             "frost": "Zusätzlich die Frontscheibe enteisen und die Lenkradheizung einschalten, wenn die Vorhersage zur Abfahrt die Schwelle erreicht oder unterschreitet. Braucht eine Wetterquelle für die Vorklimatisierung.",
