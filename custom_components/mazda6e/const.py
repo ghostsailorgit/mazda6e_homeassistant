@@ -22,6 +22,12 @@ PLAN_TIME = "time"
 PLAN_WEEKDAYS = "weekdays"
 PLAN_TEMPERATURE = "temperature"
 PLAN_ENABLED = "enabled"
+# Frost protection: defrost and steering wheel heating on top of the profile
+# when the forecast at departure is at or below PLAN_FROST_BELOW (°C).
+PLAN_FROST = "frost"
+PLAN_FROST_BELOW = "frost_below"
+FROST_BELOW_DEFAULT = 3.0
+FROST_BELOW_MIN, FROST_BELOW_MAX = -20.0, 15.0
 
 # Backends used by the official "MAZDA 6e & CX-6e" app. The car is built on a
 # Changan platform, so the app talks to Changan's "CMA" gateway, not to the

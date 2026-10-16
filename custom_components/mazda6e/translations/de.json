@@ -70,7 +70,13 @@
             "time": "Abfahrtszeit",
             "weekdays": "Wochentage",
             "temperature": "Temperatur",
-            "vehicle_id": "Auto"
+            "vehicle_id": "Auto",
+            "frost": "Frostschutz",
+            "frost_below": "Frostschutz-Schwelle"
+          },
+          "data_description": {
+            "frost": "Zusätzlich die Frontscheibe enteisen und die Lenkradheizung einschalten, wenn die Vorhersage zur Abfahrt die Schwelle erreicht oder unterschreitet. Braucht eine Wetterquelle für die Vorklimatisierung.",
+            "frost_below": "Vorhergesagte Temperatur zur Abfahrt (°C), ab der (gleich oder kälter) der Frostschutz läuft."
           }
         },
         "reconfigure": {
@@ -79,7 +85,13 @@
             "name": "Name",
             "time": "Abfahrtszeit",
             "weekdays": "Wochentage",
-            "temperature": "Temperatur"
+            "temperature": "Temperatur",
+            "frost": "Frostschutz",
+            "frost_below": "Frostschutz-Schwelle"
+          },
+          "data_description": {
+            "frost": "Zusätzlich die Frontscheibe enteisen und die Lenkradheizung einschalten, wenn die Vorhersage zur Abfahrt die Schwelle erreicht oder unterschreitet. Braucht eine Wetterquelle für die Vorklimatisierung.",
+            "frost_below": "Vorhergesagte Temperatur zur Abfahrt (°C), ab der (gleich oder kälter) der Frostschutz läuft."
           }
         }
       },
@@ -320,6 +332,9 @@
       "precondition_cold_below": {
         "name": "Vorklimatisierung: Mindesttemperatur"
       },
+      "departure_plan_frost_below": {
+        "name": "Frostschutz-Schwelle"
+      },
       "departure_plan_temperature": {
         "name": "Temperatur"
       }
@@ -348,6 +363,9 @@
       },
       "precondition_battery": {
         "name": "Vorklimatisierung: Akku vorheizen"
+      },
+      "departure_plan_frost": {
+        "name": "Frostschutz"
       },
       "departure_plan": {
         "name": "Abfahrtsplan"

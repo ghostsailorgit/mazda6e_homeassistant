@@ -70,7 +70,13 @@
             "time": "Departure time",
             "weekdays": "Weekdays",
             "temperature": "Temperature",
-            "vehicle_id": "Car"
+            "vehicle_id": "Car",
+            "frost": "Frost protection",
+            "frost_below": "Frost protection threshold"
+          },
+          "data_description": {
+            "frost": "Also defrost the windscreen and switch on the steering wheel heating when the forecast at departure is at or below the threshold. Needs a weather source for pre-conditioning.",
+            "frost_below": "Forecast temperature at departure (°C) at or below which frost protection runs."
           }
         },
         "reconfigure": {
@@ -79,7 +85,13 @@
             "name": "Name",
             "time": "Departure time",
             "weekdays": "Weekdays",
-            "temperature": "Temperature"
+            "temperature": "Temperature",
+            "frost": "Frost protection",
+            "frost_below": "Frost protection threshold"
+          },
+          "data_description": {
+            "frost": "Also defrost the windscreen and switch on the steering wheel heating when the forecast at departure is at or below the threshold. Needs a weather source for pre-conditioning.",
+            "frost_below": "Forecast temperature at departure (°C) at or below which frost protection runs."
           }
         }
       },
@@ -320,6 +332,9 @@
       "precondition_cold_below": {
         "name": "Pre-conditioning: minimum temperature"
       },
+      "departure_plan_frost_below": {
+        "name": "Frost protection threshold"
+      },
       "departure_plan_temperature": {
         "name": "Temperature"
       }
@@ -348,6 +363,9 @@
       },
       "precondition_battery": {
         "name": "Pre-conditioning: battery preheating"
+      },
+      "departure_plan_frost": {
+        "name": "Frost protection"
       },
       "departure_plan": {
         "name": "Departure plan"

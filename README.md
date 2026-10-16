@@ -192,9 +192,19 @@ briefly unreachable.
 Each plan has a name, a departure time, the weekdays it applies to and its own
 temperature — e.g. "Work, 07:30, Mon–Fri, 21 °C" and "Gym, 17:00, Tue+Thu, 19 °C".
 Several plans may fall on the same day. Each plan is its own device below the car
-(e.g. *Mazda 6e Work*) with three entities for the dashboard: *Departure plan* (on/off),
-*Departure time* and *Temperature*; the weekdays are changed with *Reconfigure* on the
-plan. The main switch *Pre-conditioning departure plans* turns all plans on or off.
+(e.g. *Mazda 6e Work*) with entities for the dashboard: *Departure plan* (on/off),
+*Departure time*, *Temperature*, *Frost protection* and *Frost protection threshold*;
+the weekdays are changed with *Reconfigure* on the plan. The main switch
+*Pre-conditioning departure plans* turns all plans on or off.
+
+**Frost protection** (per plan, off by default): if the forecast for the departure is
+at or below the *Frost protection threshold* (default 3 °C, −20 to 15 °C), the plan
+additionally defrosts the windscreen and switches on the steering wheel heating — on
+top of the profile. It needs a *weather source* (see below) and uses the hourly
+forecast, or the day's low if the departure lies beyond it; if no forecast can be read
+at all it runs anyway (better defrosted once too often than scraping ice). Without a
+weather source it never runs. Example: "Work" with frost protection at 3 °C — at
++8 °C only climate control, at +1 °C climate control, defrost and steering wheel heating.
 
 **Profile** (shared by all plans, under *Configure* on the device):
 
@@ -245,7 +255,7 @@ skipped departure — or all departure plans — off and on again.
 `device_id` is only needed with multiple cars. `start_preconditioning` returns the
 failed steps (`failed`) in its response. Every run fires the `mazda6e_preconditioning`
 event (`action`: `started`/`stopped`/`skipped`, `source`: `schedule`/`service`/`button`,
-`departure`, `plan`, `failed`).
+`departure`, `plan`, `frost_protection`, `failed`).
 
 Example: preheat based on your calendar, only when it's cold
 

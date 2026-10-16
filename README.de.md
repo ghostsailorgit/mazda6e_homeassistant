@@ -197,10 +197,19 @@ Cloud kurz nicht erreichbar ist.
 hinzufügen*. Jeder Plan hat einen Namen, eine Abfahrtszeit, die Wochentage und eine
 eigene Temperatur – z. B. „Arbeit, 07:30, Mo–Fr, 21 °C" und „Training, 17:00, Di+Do,
 19 °C". Mehrere Pläne am selben Tag sind möglich. Jeder Plan ist ein eigenes Gerät
-unterhalb des Autos (z. B. *Mazda 6e Arbeit*) mit drei Entitäten fürs Dashboard:
-*Abfahrtsplan* (an/aus), *Abfahrtszeit* und *Temperatur*; die Wochentage ändert man
-über *Neu konfigurieren* am Plan. Der Hauptschalter *Vorklimatisierung Abfahrtspläne*
-schaltet alle Pläne ein oder aus.
+unterhalb des Autos (z. B. *Mazda 6e Arbeit*) mit Entitäten fürs Dashboard:
+*Abfahrtsplan* (an/aus), *Abfahrtszeit*, *Temperatur*, *Frostschutz* und
+*Frostschutz-Schwelle*; die Wochentage ändert man über *Neu konfigurieren* am Plan. Der
+Hauptschalter *Vorklimatisierung Abfahrtspläne* schaltet alle Pläne ein oder aus.
+
+**Frostschutz** (pro Plan, standardmäßig aus): Liegt die Vorhersage für die Abfahrt bei
+oder unter der *Frostschutz-Schwelle* (Standard 3 °C, −20 bis 15 °C), enteist der Plan
+zusätzlich die Frontscheibe und schaltet die Lenkradheizung ein – zusätzlich zum Profil.
+Dafür braucht es eine *Wetterquelle* (siehe unten); genutzt wird die Stundenvorhersage,
+liegt die Abfahrt jenseits davon der Tiefstwert des Tages. Lässt sich gar keine
+Vorhersage lesen, läuft der Frostschutz trotzdem (lieber einmal zu oft enteist als
+Eis kratzen). Ohne Wetterquelle läuft er nie. Beispiel: „Arbeit" mit Frostschutz bei
+3 °C – bei +8 °C nur Klimatisierung, bei +1 °C Klimatisierung, Enteisen und Lenkradheizung.
 
 **Profil** (für alle Pläne gemeinsam, unter *Konfiguration* am Gerät):
 
@@ -251,7 +260,7 @@ wieder einschaltest.
 `device_id` ist nur bei mehreren Autos nötig. `start_preconditioning` liefert als Antwort
 die fehlgeschlagenen Schritte (`failed`). Jeder Lauf löst das Event
 `mazda6e_preconditioning` aus (`action`: `started`/`stopped`/`skipped`, `source`:
-`schedule`/`service`/`button`, `departure`, `plan`, `failed`).
+`schedule`/`service`/`button`, `departure`, `plan`, `frost_protection`, `failed`).
 
 Beispiel: nach dem Kalender vorheizen, nur wenn es kalt ist
 

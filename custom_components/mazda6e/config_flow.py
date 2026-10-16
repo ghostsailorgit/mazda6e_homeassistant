@@ -55,9 +55,14 @@ from .const import (
     CONF_TOKEN,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    FROST_BELOW_DEFAULT,
+    FROST_BELOW_MAX,
+    FROST_BELOW_MIN,
     MAX_SCAN_INTERVAL,
     MIN_SCAN_INTERVAL,
     PLAN_ENABLED,
+    PLAN_FROST,
+    PLAN_FROST_BELOW,
     PLAN_TEMPERATURE,
     PLAN_TIME,
     PLAN_VEHICLE,
@@ -230,6 +235,16 @@ def _plan_schema(defaults: Mapping[str, Any], vehicles: dict[str, str]) -> vol.S
                 unit_of_measurement="°C",
             )
         ),
+        vol.Required(PLAN_FROST, default=defaults.get(PLAN_FROST, False)): BooleanSelector(),
+        vol.Required(PLAN_FROST_BELOW, default=defaults.get(PLAN_FROST_BELOW, FROST_BELOW_DEFAULT)): NumberSelector(
+            NumberSelectorConfig(
+                min=FROST_BELOW_MIN,
+                max=FROST_BELOW_MAX,
+                step=0.5,
+                mode=NumberSelectorMode.BOX,
+                unit_of_measurement="°C",
+            )
+        ),
     }
     if len(vehicles) > 1:
         fields[vol.Required(PLAN_VEHICLE, default=defaults.get(PLAN_VEHICLE, next(iter(vehicles))))] = SelectSelector(
@@ -254,11 +269,13 @@ def _plan_data(user_input: Mapping[str, Any]) -> dict[str, Any]:
         PLAN_TIME: user_input[PLAN_TIME][:5],
         PLAN_WEEKDAYS: [day for day in WEEKDAYS if day in user_input[PLAN_WEEKDAYS]],
         PLAN_TEMPERATURE: float(user_input[PLAN_TEMPERATURE]),
+        PLAN_FROST: bool(user_input[PLAN_FROST]),
+        PLAN_FROST_BELOW: float(user_input[PLAN_FROST_BELOW]),
     }
 
 
 class DeparturePlanFlow(ConfigSubentryFlow):
-    """Add or change a departure plan: name, time, weekdays and temperature."""
+    """Add or change a departure plan: name, time, weekdays, temperature, frost protection."""
 
     def _vehicles(self) -> dict[str, str]:
         entry = self._get_entry()

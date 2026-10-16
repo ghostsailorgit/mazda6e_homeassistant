@@ -3,7 +3,9 @@
 One ``Preconditioner`` per car keeps a profile (seat heating, steering wheel
 heating, defrost, battery preheating, lead time) and runs it ``lead``
 minutes before the next departure of its departure plans. Departure plans
-are config subentries (name, time, weekdays, temperature, on/off), so users
+are config subentries (name, time, weekdays, temperature, on/off, frost
+protection: defrost and steering wheel heating when the forecast at
+departure is at or below a threshold), so users
 add as many as they need from the integration page. The same profile can be
 started from outside through the ``mazda6e.start_preconditioning`` service.
 
@@ -34,7 +36,10 @@ from homeassistant.util import dt as dt_util
 from .api import CLIMATE_MAX_TEMP, CLIMATE_MIN_TEMP, MazdaError
 from .const import (
     DOMAIN,
+    FROST_BELOW_DEFAULT,
     PLAN_ENABLED,
+    PLAN_FROST,
+    PLAN_FROST_BELOW,
     PLAN_TEMPERATURE,
     PLAN_TIME,
     PLAN_VEHICLE,
@@ -95,6 +100,8 @@ class DeparturePlan:
     weekdays: frozenset[str]
     temperature: float
     enabled: bool
+    frost: bool = False
+    frost_below: float = FROST_BELOW_DEFAULT
 
 
 def plans_from_entry(entry: ConfigEntry, vehicle_id: str) -> list[DeparturePlan]:
@@ -107,6 +114,8 @@ def plans_from_entry(entry: ConfigEntry, vehicle_id: str) -> list[DeparturePlan]
             weekdays=frozenset(subentry.data[PLAN_WEEKDAYS]),
             temperature=float(subentry.data[PLAN_TEMPERATURE]),
             enabled=bool(subentry.data[PLAN_ENABLED]),
+            frost=bool(subentry.data.get(PLAN_FROST, False)),
+            frost_below=float(subentry.data.get(PLAN_FROST_BELOW, FROST_BELOW_DEFAULT)),
         )
         for subentry in entry.subentries.values()
         if subentry.subentry_type == SUBENTRY_PLAN and subentry.data.get(PLAN_VEHICLE) == vehicle_id
@@ -327,21 +336,29 @@ class Preconditioner:
         if self._scheduled is None:
             return
         departure, plan = self._scheduled
-        if not await self._should_preheat(departure):
+        entity_id = self.settings.get("weather_entity")
+        temperature = (
+            await self._async_forecast_temperature(entity_id, departure) if entity_id else None
+        )
+        if not self._should_preheat(temperature):
             self._record("skipped", "schedule", departure, [], plan=plan.name)
             self._schedule()
             return
+        frost = await self._frost_protection(plan, departure, temperature)
+        extras = {"steering_wheel": True, "defrost": True} if frost else {}
         # Battery preheating was already handed to the car when planning.
         await self.async_start(
             source="schedule",
             departure=departure,
             plan=plan.name,
+            frost=frost,
             battery=False,
             temperature=plan.temperature,
+            **extras,
         )
         self._schedule()
 
-    async def _should_preheat(self, departure: datetime) -> bool:
+    def _should_preheat(self, temperature: float | None) -> bool:
         """Whether the weather gate allows the scheduled run to go ahead.
 
         No weather entity configured -> always run (old behaviour). A forecast
@@ -349,14 +366,29 @@ class Preconditioner:
         lets the run go ahead, so a temporary weather-integration hiccup never
         silently skips pre-conditioning.
         """
-        entity_id = self.settings.get("weather_entity")
         threshold = self.settings.get("cold_below")
-        if not entity_id or threshold is None:
-            return True
-        temperature = await self._async_forecast_temperature(entity_id, departure)
-        if temperature is None:
+        if not self.settings.get("weather_entity") or threshold is None or temperature is None:
             return True
         return temperature < threshold
+
+    async def _frost_protection(
+        self, plan: DeparturePlan, departure: datetime, temperature: float | None
+    ) -> bool:
+        """Whether the plan's frost protection adds defrost and steering wheel heating.
+
+        Needs a weather entity. ``temperature`` is the hourly forecast at the
+        departure; without it the day's low is used. If no forecast can be read
+        at all, frost protection runs: better a defrosted windscreen too much
+        than one to scrape.
+        """
+        entity_id = self.settings.get("weather_entity")
+        if not plan.frost or not entity_id:
+            return False
+        if temperature is None:
+            temperature = await self._async_daily_low(entity_id, departure)
+        if temperature is None:
+            return True
+        return temperature <= plan.frost_below
 
     @callback
     def _set_departure_forecast(self, temperature: float | None, forecast_type: str | None) -> None:
@@ -482,6 +514,7 @@ class Preconditioner:
         source: str,
         departure: datetime | None = None,
         plan: str | None = None,
+        frost: bool | None = None,
         **overrides: Any,
     ) -> list[str]:
         """Run the profile now. ``overrides`` replace single profile values.
@@ -511,7 +544,7 @@ class Preconditioner:
             steps.append(("battery", lambda: client.set_battery_preheat(vid, battery_plan, end)))
 
         failed = await self._async_run(steps)
-        self._record("started", source, departure, failed, plan=plan)
+        self._record("started", source, departure, failed, plan=plan, frost=frost)
         await self.coordinator.async_request_refresh()
         return failed
 
@@ -560,6 +593,7 @@ class Preconditioner:
         failed: list[str],
         *,
         plan: str | None = None,
+        frost: bool | None = None,
     ) -> None:
         self.last_run = {
             "action": action,
@@ -567,6 +601,7 @@ class Preconditioner:
             "time": dt_util.now().isoformat(),
             "departure": departure.isoformat() if departure else None,
             "plan": plan,
+            "frost_protection": frost,
             "failed": failed,
         }
         self.hass.bus.async_fire(

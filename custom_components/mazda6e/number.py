@@ -17,7 +17,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .api import CHARGE_LIMIT_MAX, CHARGE_LIMIT_MIN, CLIMATE_MAX_TEMP, CLIMATE_MIN_TEMP
-from .const import PLAN_TEMPERATURE
+from .const import FROST_BELOW_DEFAULT, FROST_BELOW_MAX, FROST_BELOW_MIN, PLAN_FROST_BELOW, PLAN_TEMPERATURE
 from .coordinator import Mazda6eConfigEntry
 from .entity import (
     Mazda6eControlEntity,
@@ -116,7 +116,24 @@ async def async_setup_entry(
                 ),
                 p,
                 subentry_id,
-            )
+            ),
+            Mazda6eDeparturePlanFrostBelow(
+                coordinator,
+                vid,
+                NumberEntityDescription(
+                    key=f"departure_plan_{subentry_id}_frost_below",
+                    translation_key="departure_plan_frost_below",
+                    icon="mdi:thermometer-low",
+                    native_min_value=FROST_BELOW_MIN,
+                    native_max_value=FROST_BELOW_MAX,
+                    native_step=0.5,
+                    native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+                    mode=NumberMode.BOX,
+                    entity_category=EntityCategory.CONFIG,
+                ),
+                p,
+                subentry_id,
+            ),
         ],
     )
 
@@ -156,3 +173,14 @@ class Mazda6eDeparturePlanTemperature(Mazda6eDeparturePlanEntity, NumberEntity):
 
     async def async_set_native_value(self, value: float) -> None:
         self.update_plan(**{PLAN_TEMPERATURE: value})
+
+
+class Mazda6eDeparturePlanFrostBelow(Mazda6eDeparturePlanEntity, NumberEntity):
+    """Forecast temperature at departure (°C) from which frost protection runs."""
+
+    @property
+    def native_value(self) -> float:
+        return float(self.plan_data.get(PLAN_FROST_BELOW, FROST_BELOW_DEFAULT))
+
+    async def async_set_native_value(self, value: float) -> None:
+        self.update_plan(**{PLAN_FROST_BELOW: value})

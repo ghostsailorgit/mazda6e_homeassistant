@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .api import Mazda6eClient
-from .const import PLAN_ENABLED
+from .const import PLAN_ENABLED, PLAN_FROST
 from .coordinator import Mazda6eConfigEntry, VehicleData
 from .entity import (
     Mazda6eControlEntity,
@@ -119,7 +119,19 @@ async def async_setup_entry(
                 ),
                 p,
                 subentry_id,
-            )
+            ),
+            Mazda6eDeparturePlanFrostSwitch(
+                coordinator,
+                vid,
+                SwitchEntityDescription(
+                    key=f"departure_plan_{subentry_id}_frost",
+                    translation_key="departure_plan_frost",
+                    icon="mdi:snowflake-thermometer",
+                    entity_category=EntityCategory.CONFIG,
+                ),
+                p,
+                subentry_id,
+            ),
         ],
     )
 
@@ -227,3 +239,17 @@ class Mazda6eDeparturePlanSwitch(Mazda6eDeparturePlanEntity, SwitchEntity):
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         self.update_plan(**{PLAN_ENABLED: False})
+
+
+class Mazda6eDeparturePlanFrostSwitch(Mazda6eDeparturePlanEntity, SwitchEntity):
+    """Defrost and steering wheel heating when the departure is frosty."""
+
+    @property
+    def is_on(self) -> bool:
+        return bool(self.plan_data.get(PLAN_FROST, False))
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        self.update_plan(**{PLAN_FROST: True})
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        self.update_plan(**{PLAN_FROST: False})

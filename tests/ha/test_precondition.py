@@ -31,6 +31,8 @@ from custom_components.mazda6e.const import (
     CONF_TOKEN,
     DOMAIN,
     PLAN_ENABLED,
+    PLAN_FROST,
+    PLAN_FROST_BELOW,
     PLAN_TEMPERATURE,
     PLAN_TIME,
     PLAN_VEHICLE,
@@ -67,7 +69,9 @@ def client():
         yield mocks
 
 
-def _plan(subentry_id, title, at, weekdays, temperature=21.0, enabled=True) -> ConfigSubentryDataWithId:
+def _plan(
+    subentry_id, title, at, weekdays, temperature=21.0, enabled=True, **extra
+) -> ConfigSubentryDataWithId:
     return ConfigSubentryDataWithId(
         subentry_id=subentry_id,
         subentry_type=SUBENTRY_PLAN,
@@ -79,6 +83,7 @@ def _plan(subentry_id, title, at, weekdays, temperature=21.0, enabled=True) -> C
             PLAN_WEEKDAYS: list(weekdays),
             PLAN_TEMPERATURE: temperature,
             PLAN_ENABLED: enabled,
+            **extra,
         },
     )
 
@@ -258,6 +263,8 @@ async def test_add_and_change_plan_in_dialog(hass: HomeAssistant, client) -> Non
         PLAN_TIME: "17:00",
         PLAN_WEEKDAYS: ["tue", "thu"],
         PLAN_TEMPERATURE: 19.0,
+        PLAN_FROST: False,
+        PLAN_FROST_BELOW: 3.0,
         PLAN_VEHICLE: "42",
         PLAN_ENABLED: True,
     }
@@ -267,13 +274,25 @@ async def test_add_and_change_plan_in_dialog(hass: HomeAssistant, client) -> Non
         (entry.entry_id, SUBENTRY_PLAN), context={"source": SOURCE_RECONFIGURE, "subentry_id": subentry_id}
     )
     result = await flows.async_configure(
-        result["flow_id"], {"name": "Gym", "time": "18:15:00", "weekdays": ["mon"], "temperature": 18.5}
+        result["flow_id"],
+        {
+            "name": "Gym",
+            "time": "18:15:00",
+            "weekdays": ["mon"],
+            "temperature": 18.5,
+            "frost": True,
+            "frost_below": 1.5,
+        },
     )
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "reconfigure_successful"
     await hass.async_block_till_done()
     assert entry.subentries[subentry_id].data[PLAN_TIME] == "18:15"
     assert entry.subentries[subentry_id].data[PLAN_WEEKDAYS] == ["mon"]
+    assert (entry.subentries[subentry_id].data[PLAN_FROST], entry.subentries[subentry_id].data[PLAN_FROST_BELOW]) == (
+        True,
+        1.5,
+    )
     assert hass.states.get("time.mazda_6e_gym_departure_time").state == "18:15:00"
 
 
@@ -484,3 +503,77 @@ async def test_plan_button_reports_failed_steps(hass: HomeAssistant, client) -> 
         )
     assert err.value.translation_key == "precondition_failed"
     assert client["set_climate"].await_args == call("42", True, 21.0, run_time=15)
+
+
+FORECAST = "custom_components.mazda6e.precondition.Preconditioner._async_forecast_temperature"
+DAILY_LOW = "custom_components.mazda6e.precondition.Preconditioner._async_daily_low"
+
+
+async def _run_frost_plan(hass, client, freezer, *, weather=True, hourly=None, daily=None, frost=True):
+    """Set up a Monday 07:30 plan with frost protection below 3 °C and let it start."""
+    freezer.move_to(_local(2026, 10, 5, 6, 0))
+    await _setup(hass, _plan("work", "Work", "07:30", ["mon"], **{PLAN_FROST: frost, PLAN_FROST_BELOW: 3.0}))
+    events = async_capture_events(hass, EVENT_PRECONDITIONING)
+    if weather:
+        hass.states.async_set("weather.test", "snowy")
+        await _call(
+            hass, "select", "select_option", "select.mazda_6e_pre_conditioning_weather_source", option="weather.test"
+        )
+    await _call(hass, "switch", "turn_on", MASTER)
+    with patch(FORECAST, AsyncMock(return_value=hourly)), patch(DAILY_LOW, AsyncMock(return_value=daily)):
+        freezer.move_to(_local(2026, 10, 5, 7, 15))
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done()
+    client["set_climate"].assert_awaited_once_with("42", True, 21.0, run_time=15)
+    return events[-1].data
+
+
+@pytest.mark.parametrize(
+    ("hourly", "daily", "frost"),
+    [
+        (3.0, None, True),  # at the threshold
+        (-4.0, None, True),
+        (3.5, None, False),
+        (None, 1.0, True),  # departure beyond the hourly forecast -> day's low
+        (None, 6.0, False),
+        (None, None, True),  # no forecast at all -> rather defrost
+    ],
+)
+async def test_frost_protection_follows_forecast(hass: HomeAssistant, client, freezer, hourly, daily, frost) -> None:
+    event = await _run_frost_plan(hass, client, freezer, hourly=hourly, daily=daily)
+
+    assert event["action"] == "started"
+    assert event["frost_protection"] is frost
+    if frost:
+        client["set_defrost"].assert_awaited_once_with("42", True)
+        client["set_steering_wheel_heat"].assert_awaited_once_with("42", True)
+    else:
+        client["set_defrost"].assert_not_awaited()
+        client["set_steering_wheel_heat"].assert_not_awaited()
+
+
+async def test_frost_protection_needs_switch_and_weather(hass: HomeAssistant, client, freezer) -> None:
+    event = await _run_frost_plan(hass, client, freezer, frost=False, hourly=-5.0)
+    assert event["frost_protection"] is False
+    client["set_defrost"].assert_not_awaited()
+
+
+async def test_frost_protection_without_weather_source(hass: HomeAssistant, client, freezer) -> None:
+    event = await _run_frost_plan(hass, client, freezer, weather=False, hourly=-5.0)
+    assert event["frost_protection"] is False
+    client["set_defrost"].assert_not_awaited()
+    client["set_steering_wheel_heat"].assert_not_awaited()
+
+
+async def test_frost_entities_store_in_subentry(hass: HomeAssistant, client) -> None:
+    entry = await _setup(hass, _plan("work", "Work", "07:30", WEEKDAYS_MON_FRI))  # plan from before 0.9
+    assert hass.states.get("switch.mazda_6e_work_frost_protection").state == "off"
+    assert hass.states.get("number.mazda_6e_work_frost_protection_threshold").state == "3.0"
+
+    await _call(hass, "switch", "turn_on", "switch.mazda_6e_work_frost_protection")
+    await _call(hass, "number", "set_value", "number.mazda_6e_work_frost_protection_threshold", value=-1.5)
+
+    data = entry.subentries["work"].data
+    assert (data[PLAN_FROST], data[PLAN_FROST_BELOW]) == (True, -1.5)
+    assert hass.states.get("switch.mazda_6e_work_frost_protection").state == "on"
+    assert hass.states.get("number.mazda_6e_work_frost_protection_threshold").state == "-1.5"
