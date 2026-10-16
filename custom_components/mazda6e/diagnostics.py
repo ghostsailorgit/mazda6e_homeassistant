@@ -45,6 +45,8 @@ async def async_get_config_entry_diagnostics(
             "model_name": data.vehicle.model_name,
             "series_name": data.vehicle.series_name,
             "raw_status": data.status.raw,
+            # function-config codes that decide which entities are created
+            "functions": sorted(data.functions),
         }
         for i, data in enumerate((coordinator.data or {}).values())
     }

@@ -19,6 +19,7 @@ from custom_components.mazda6e.const import (
     CONF_TOKEN,
     DOMAIN,
 )
+from custom_components.mazda6e.diagnostics import async_get_config_entry_diagnostics
 from custom_components.mazda6e.models import Vehicle, VehicleStatus
 
 CLIENT = "custom_components.mazda6e.api.Mazda6eClient"
@@ -139,6 +140,32 @@ async def test_seats_follow_function_config(hass: HomeAssistant, client) -> None
     assert hass.states.get("select.mazda_6e_seat_heating_passenger") is None
     assert hass.states.get("select.mazda_6e_seat_ventilation_driver") is None
     assert hass.states.get("button.mazda_6e_flash_and_honk") is None  # no #findCar
+
+
+async def test_seat_heating_from_status_without_seat_codes(hass: HomeAssistant, client) -> None:
+    # A European Mazda 6e lists no seat code in its function-config, but reports
+    # seat heating and ventilation in its status and accepts both commands.
+    await _setup(hass, functions={"#findCar", "ACSW"})
+    assert hass.states.get("select.mazda_6e_seat_heating_driver") is not None
+    assert hass.states.get("select.mazda_6e_seat_ventilation_driver") is not None
+    assert hass.states.get("select.mazda_6e_pre_conditioning_seat_heating") is not None
+    # The status reports nothing for the passenger seat.
+    assert hass.states.get("select.mazda_6e_seat_heating_passenger") is None
+    assert hass.states.get("select.mazda_6e_seat_ventilation_passenger") is None
+
+    await _call(hass, "select", "select_option", "select.mazda_6e_seat_heating_driver", option="1")
+    await _call(hass, "select", "select_option", "select.mazda_6e_seat_ventilation_driver", option="2")
+    assert [c.args for c in client["set_seat"].await_args_list] == [
+        ("42", "heat", "driver", 1),
+        ("42", "wind", "driver", 2),
+    ]
+
+
+async def test_diagnostics_list_function_codes(hass: HomeAssistant, client) -> None:
+    await _setup(hass, functions={"ACSW", "#findCar"})
+    entry = hass.config_entries.async_entries(DOMAIN)[0]
+    diagnostics = await async_get_config_entry_diagnostics(hass, entry)
+    assert diagnostics["vehicles"]["vehicle_0"]["functions"] == ["#findCar", "ACSW"]
 
 
 async def test_covers_need_pin(hass: HomeAssistant, client) -> None:

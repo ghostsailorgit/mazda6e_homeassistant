@@ -143,7 +143,11 @@ automation:
 ## Weitere Fernsteuerung
 
 Alle Befehle werden wie beim Verriegeln signiert. Entitäten für Ausstattung, die das Auto
-laut seiner Funktionsliste (`function-config`) nicht hat, werden nicht angelegt.
+laut seiner Funktionsliste (`function-config`) nicht hat, werden nicht angelegt. Ausnahme:
+Manche Autos melden dort gar keinen Sitz-Code, liefern Sitzheizung und -belüftung aber im
+Status und nehmen die Befehle an (gesehen bei einem europäischen Mazda 6e) – sie bekommen
+beides für jeden Sitz, den der Status meldet. Der Diagnose-Download listet die Codes des
+Autos (`functions`).
 
 | Entität | Was sie tut | PIN |
 | --- | --- | --- |

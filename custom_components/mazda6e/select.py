@@ -9,7 +9,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .coordinator import Mazda6eConfigEntry
+from .coordinator import Mazda6eConfigEntry, VehicleData
 from .entity import Mazda6eControlEntity, Mazda6ePlanEntity, has_control, plan_entities
 from .precondition import NO_WEATHER_ENTITY
 
@@ -77,6 +77,25 @@ SEATS: tuple[Mazda6eSeatDescription, ...] = (
     ),
 )
 
+SEAT_FUNCTIONS = frozenset(description.function for description in SEATS)
+SEAT_HEAT_DRIVER = SEATS[0]
+
+
+def seat_supported(data: VehicleData, description: Mazda6eSeatDescription) -> bool:
+    """Whether the car has this seat function.
+
+    Normally the car's function-config decides. Some cars (e.g. a European
+    Mazda 6e) list none of the seat codes there, yet report seat heating and
+    ventilation in their status and accept both commands. For those, a seat
+    function is offered when the status reports it.
+    """
+    if data.supports(description.function):
+        return True
+    if data.functions & SEAT_FUNCTIONS:
+        return False
+    return getattr(data.status, description.field) is not None
+
+
 PLAN_SEAT_HEAT = SelectEntityDescription(
     key="precondition_seat_heat",
     translation_key="precondition_seat_heat",
@@ -105,14 +124,14 @@ async def async_setup_entry(
         Mazda6eSeatSelect(coordinator, vid, description)
         for vid, data in coordinator.data.items()
         for description in SEATS
-        if data.supports(description.function)
+        if seat_supported(data, description)
     )
     async_add_entities(
         plan_entities(
             entry,
             lambda vid, p: (
                 [Mazda6ePlanSeatHeat(coordinator, vid, PLAN_SEAT_HEAT, p)]
-                if coordinator.data[vid].supports("#driverSeatHeat")
+                if seat_supported(coordinator.data[vid], SEAT_HEAT_DRIVER)
                 else []
             ),
         )

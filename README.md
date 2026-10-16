@@ -139,7 +139,11 @@ automation:
 ## More remote controls
 
 All commands are signed the same way as locking. Entities for equipment the car
-doesn't have (per its `function-config` feature list) are not created.
+doesn't have (per its `function-config` feature list) are not created. Exception:
+some cars list no seat code at all but report seat heating and ventilation in
+their status and accept the commands (seen on a European Mazda 6e) — they get
+both for every seat the status reports. The diagnostics download lists the
+car's codes (`functions`).
 
 | Entity | What it does | PIN |
 | --- | --- | --- |
