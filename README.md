@@ -162,6 +162,15 @@ that) — they only work with a stored control PIN, otherwise you get an error.
 > also only opens a gap and hides the spoiler button when the phone isn't connected
 > to the car. Home Assistant cannot do this.
 
+> **Not controllable via the cloud.** The car may list air recirculation, the air
+> purifier, windscreen wiper heating, the automatic tailgate or the rear spoiler in
+> its `function-config` (e.g. `ACAirCirculatorSW`, `ACAirPurifierSW`,
+> `TrunkAutoSW`), but Mazda's cloud API has no endpoint for any of them — checked
+> against the app's full car-control interface (see
+> [Sunek0/ha-mazda-6e-cx6#1](https://github.com/Sunek0/ha-mazda-6e-cx6/issues/1)).
+> They can only be operated in the car or via the app's Bluetooth key, so the
+> integration offers no entities for them.
+
 > **Good to know: the charge limit.** The Mazda app has no charge limit; the
 > integration uses the endpoint `charge/percentage` (`chargePercentageMax`). The
 > 60–100 % range of the slider is the real one: tested on a car (October 2026),

@@ -167,6 +167,15 @@ Fehlermeldung.
 > die App öffnet ohne Bluetooth-Verbindung zum Auto nur einen Spalt und blendet den
 > Spoiler-Knopf aus. Home Assistant kann das nicht.
 
+> **Über die Cloud nicht steuerbar.** Das Auto führt in seiner Funktionsliste
+> (`function-config`) teils Umluft, Luftreiniger, Scheibenwischerheizung,
+> automatische Heckklappe oder Heckspoiler auf (z. B. `ACAirCirculatorSW`,
+> `ACAirPurifierSW`, `TrunkAutoSW`), Mazdas Cloud-API hat dafür aber keinen
+> Endpunkt – geprüft an der kompletten Fahrzeugsteuerungs-Schnittstelle der App
+> (siehe [Sunek0/ha-mazda-6e-cx6#1](https://github.com/Sunek0/ha-mazda-6e-cx6/issues/1)).
+> Sie lassen sich nur im Auto oder per Bluetooth-Schlüssel der App bedienen, die
+> Integration bietet dafür keine Entitäten an.
+
 > **Gut zu wissen: das Ladelimit.** Die Mazda-App hat kein Ladelimit; die
 > Integration nutzt den Endpunkt `charge/percentage` (`chargePercentageMax`). Der
 > Bereich 60–100 % des Reglers ist der echte: An einem Auto getestet (Oktober
