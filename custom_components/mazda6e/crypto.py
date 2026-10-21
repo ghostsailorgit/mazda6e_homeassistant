@@ -1,3 +1,11 @@
+# Based on custom_components/mazda_6e/credential_crypto.py from
+# https://github.com/fano0001/home-assistant-mazda-6e
+# Copyright (c) 2025-2026 FaNo (fano0001) and contributors
+# Licensed under the Apache License, Version 2.0
+# (http://www.apache.org/licenses/LICENSE-2.0).
+# Modified for this integration: renamed helpers, a generic payload signature
+# instead of the door-only one, and different error handling.
+
 """Cryptographic helpers replicating what the Mazda 6e app does.
 
 The app never sends e-mail address or password in clear text: both are

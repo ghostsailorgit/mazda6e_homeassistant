@@ -378,6 +378,8 @@ Flow, same as the app:
 The protocol details come from the existing community projects
 [fano0001/home-assistant-mazda-6e](https://github.com/fano0001/home-assistant-mazda-6e) (Apache-2.0)
 and [Sunek0/ha-mazda-6e-cx6](https://github.com/Sunek0/ha-mazda-6e-cx6) (MIT).
+`custom_components/mazda6e/crypto.py` is based on fano0001's `credential_crypto.py`
+(Apache-2.0, attribution in the file header).
 
 ### Protocol uncertainties
 
