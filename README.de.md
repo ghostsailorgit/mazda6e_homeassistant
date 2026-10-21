@@ -384,6 +384,8 @@ Ablauf wie in der App:
 Die Protokolldetails stammen aus den bestehenden Community-Projekten
 [fano0001/home-assistant-mazda-6e](https://github.com/fano0001/home-assistant-mazda-6e) (Apache-2.0)
 und [Sunek0/ha-mazda-6e-cx6](https://github.com/Sunek0/ha-mazda-6e-cx6) (MIT).
+`custom_components/mazda6e/crypto.py` basiert auf fano0001s `credential_crypto.py`
+(Apache-2.0, Urheberhinweis im Dateikopf).
 
 ### Protokoll-Unsicherheiten
 
