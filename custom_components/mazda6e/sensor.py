@@ -28,7 +28,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .coordinator import Mazda6eConfigEntry
 from .entity import Mazda6eEntity, Mazda6ePlanEntity, plan_entities
-from .models import CHARGE_STATUS, POSITIONS, VehicleStatus
+from .models import CHARGE_STATUS, POSITIONS, POWER_STATE, VehicleStatus
 
 try:  # HA 2026.x; the CONCENTRATION_* constant is removed in 2027.8
     from homeassistant.const import UnitOfDensity
@@ -52,6 +52,17 @@ def _tire(position: str) -> Mazda6eSensorDescription:
         native_unit_of_measurement=UnitOfPressure.BAR,
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda s, p=position: s.tire_pressure_bar.get(p),
+    )
+
+
+def _window_opening(position: str) -> Mazda6eSensorDescription:
+    return Mazda6eSensorDescription(
+        key=f"window_opening_{position}",
+        translation_key=f"window_opening_{position}",
+        icon="mdi:window-open-variant",
+        native_unit_of_measurement=PERCENTAGE,
+        entity_registry_enabled_default=False,
+        value_fn=lambda s, p=position: s.window_open_percent.get(p),
     )
 
 
@@ -177,6 +188,16 @@ SENSORS: tuple[Mazda6eSensorDescription, ...] = (
         options=["driving", "parked"],
         value_fn=lambda s: s.vehicle_state,
     ),
+    Mazda6eSensorDescription(
+        key="power_state",
+        translation_key="power_state",
+        icon="mdi:car-key",
+        device_class=SensorDeviceClass.ENUM,
+        options=list(POWER_STATE.values()),
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda s: s.power_state,
+    ),
+    *(_window_opening(p) for p in POSITIONS),
     *(_tire(p) for p in POSITIONS),
     Mazda6eSensorDescription(
         key="last_update",

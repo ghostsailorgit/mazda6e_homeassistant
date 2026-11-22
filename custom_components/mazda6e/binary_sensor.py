@@ -100,6 +100,12 @@ BINARY_SENSORS: tuple[Mazda6eBinarySensorDescription, ...] = (
         value_fn=lambda s: s.plugged_in,
     ),
     Mazda6eBinarySensorDescription(
+        key="dc_plugged_in",
+        translation_key="dc_plugged_in",
+        device_class=BinarySensorDeviceClass.PLUG,
+        value_fn=lambda s: s.dc_plugged_in,
+    ),
+    Mazda6eBinarySensorDescription(
         key="charging",
         translation_key="charging",
         device_class=BinarySensorDeviceClass.BATTERY_CHARGING,

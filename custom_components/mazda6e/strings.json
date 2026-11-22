@@ -155,6 +155,26 @@
       "speed": {
         "name": "Speed"
       },
+      "power_state": {
+        "name": "Ignition",
+        "state": {
+          "off": "Off",
+          "accessory": "Accessory",
+          "on": "On"
+        }
+      },
+      "window_opening_front_left": {
+        "name": "Window opening front left"
+      },
+      "window_opening_front_right": {
+        "name": "Window opening front right"
+      },
+      "window_opening_rear_left": {
+        "name": "Window opening rear left"
+      },
+      "window_opening_rear_right": {
+        "name": "Window opening rear right"
+      },
       "last_update": {
         "name": "Last update from car"
       },
@@ -236,6 +256,9 @@
       },
       "plugged_in": {
         "name": "Charging cable"
+      },
+      "dc_plugged_in": {
+        "name": "DC charging connector"
       },
       "charging": {
         "name": "Charging"
