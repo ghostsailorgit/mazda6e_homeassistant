@@ -136,8 +136,11 @@ def test_failed_refresh_raises_auth_error():
     backend.valid_token = "other"
 
     async def run(client):
-        with pytest.raises(api_mod.MazdaAuthError):
+        with pytest.raises(api_mod.MazdaRefreshError) as err:
             await client.get_status("42")
+        assert err.value.code == "X"
+        assert "X" in str(err.value)
+        assert isinstance(err.value, api_mod.MazdaAuthError)
 
     asyncio.run(_with_client(backend, run, token="t1", refresh_token="bad"))
 

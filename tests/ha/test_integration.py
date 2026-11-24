@@ -8,7 +8,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.mazda6e.api import MazdaAuthError
+from custom_components.mazda6e.api import MazdaAuthError, MazdaRefreshError
 from custom_components.mazda6e.const import (
     CONF_DEVICE_ID,
     CONF_REFRESH_TOKEN,
@@ -16,6 +16,7 @@ from custom_components.mazda6e.const import (
     CONF_TOKEN,
     DOMAIN,
 )
+from custom_components.mazda6e.coordinator import REFRESH_GRACE
 from custom_components.mazda6e.models import Vehicle, VehicleStatus
 
 CLIENT = "custom_components.mazda6e.api.Mazda6eClient"
@@ -117,6 +118,46 @@ async def test_expired_login_starts_reauth(hass: HomeAssistant) -> None:
     assert entry.state is config_entries.ConfigEntryState.SETUP_ERROR
     flows = hass.config_entries.flow.async_progress()
     assert any(f["context"]["source"] == config_entries.SOURCE_REAUTH for f in flows)
+
+
+async def test_refused_refresh_retries_before_reauth(hass: HomeAssistant) -> None:
+    entry = _entry()
+    entry.add_to_hass(hass)
+    status = AsyncMock(return_value=STATUS)
+    with (
+        patch(f"{CLIENT}.get_vehicles", AsyncMock(return_value=[VEHICLE])),
+        patch(f"{CLIENT}.get_status", status),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+        coordinator = entry.runtime_data
+
+        def reauth_flows() -> list:
+            return [
+                f
+                for f in hass.config_entries.flow.async_progress()
+                if f["context"]["source"] == config_entries.SOURCE_REAUTH
+            ]
+
+        status.side_effect = MazdaRefreshError("Token refresh failed: X busy", "X")
+        await coordinator.async_refresh()
+        await hass.async_block_till_done()
+        assert not coordinator.last_update_success
+        assert not reauth_flows()
+
+        # backend is back: the counter resets
+        status.side_effect = None
+        await coordinator.async_refresh()
+        assert coordinator.last_update_success
+        assert coordinator._refresh_failed_since is None
+
+        # refused for longer than the grace period: ask for a new login
+        status.side_effect = MazdaRefreshError("Token refresh failed: X revoked", "X")
+        await coordinator.async_refresh()
+        coordinator._refresh_failed_since -= REFRESH_GRACE
+        await coordinator.async_refresh()
+        await hass.async_block_till_done()
+        assert reauth_flows()
 
 
 async def test_token_update_does_not_reload(hass: HomeAssistant) -> None:

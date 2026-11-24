@@ -133,6 +133,14 @@ class MazdaAuthError(MazdaError):
         self.code = code
 
 
+class MazdaRefreshError(MazdaAuthError):
+    """The backend refused to renew the token.
+
+    Can be a revoked login or a short backend outage; the coordinator retries
+    for a while before it asks the user to log in again.
+    """
+
+
 class MazdaApiError(MazdaError):
     """Backend rejected a request."""
 
@@ -254,7 +262,9 @@ class Mazda6eClient:
                 {"refreshToken": self.refresh_token},
             )
             if data.get("success") is not True:
-                raise MazdaAuthError("Token refresh failed", data.get("code"))
+                code, msg = data.get("code"), data.get("msg")
+                _LOGGER.warning("Token refresh rejected by backend: code=%s msg=%s", code, msg)
+                raise MazdaRefreshError(f"Token refresh failed: {code} {msg}", code)
             await self._store_tokens(data.get("data") or {})
 
     async def _store_tokens(self, data: dict[str, Any]) -> None:

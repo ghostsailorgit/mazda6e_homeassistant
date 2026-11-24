@@ -4,15 +4,16 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
-from .api import Mazda6eClient, MazdaApiError, MazdaAuthError, MazdaError
+from .api import Mazda6eClient, MazdaApiError, MazdaAuthError, MazdaError, MazdaRefreshError
 from .const import DOMAIN
 from .models import Vehicle, VehicleStatus
 
@@ -20,6 +21,11 @@ if TYPE_CHECKING:
     from .precondition import Preconditioner
 
 _LOGGER = logging.getLogger(__name__)
+
+# A refused token refresh is retried this long before a new login is requested.
+# The backend sometimes refuses refreshes for a few minutes (seen at night);
+# asking for a login right away left the integration dead until the next morning.
+REFRESH_GRACE = timedelta(hours=1)
 
 
 @dataclass
@@ -65,6 +71,8 @@ class Mazda6eCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]):
         self.plan_titles: dict[str, str] = {}
         # vehicle_id -> device registry id of the car, filled in async_setup_entry
         self.car_device_ids: dict[str, str] = {}
+        # first refused token refresh in a row, None while refreshes work
+        self._refresh_failed_since: datetime | None = None
 
     async def _async_update_data(self) -> dict[str, VehicleData]:
         try:
@@ -89,7 +97,16 @@ class Mazda6eCoordinator(DataUpdateCoordinator[dict[str, VehicleData]]):
                     except MazdaApiError as err:
                         _LOGGER.debug("No battery preheat plan for %s: %s", vid, err)
                 result[vid] = data
+            self._refresh_failed_since = None
             return result
+        except MazdaRefreshError as err:
+            now = dt_util.utcnow()
+            if self._refresh_failed_since is None:
+                self._refresh_failed_since = now
+            # During setup there is no data to keep; HA would retry setup forever.
+            if self.data is None or now - self._refresh_failed_since >= REFRESH_GRACE:
+                raise ConfigEntryAuthFailed(str(err)) from err
+            raise UpdateFailed(f"{err}; retrying before asking for a new login") from err
         except MazdaAuthError as err:
             raise ConfigEntryAuthFailed(str(err)) from err
         except MazdaError as err:
