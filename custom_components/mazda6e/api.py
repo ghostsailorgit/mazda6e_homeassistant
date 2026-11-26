@@ -197,6 +197,8 @@ class Mazda6eClient:
         self.user_id: str | None = None
         # The backend handles one command per car at a time.
         self._command_lock = asyncio.Lock()
+        # backend answer to the last signed command before the car confirmed it
+        self.last_submit: dict[str, Any] = {}
 
     # ------------------------------------------------------------------ http
 
@@ -430,6 +432,7 @@ class Mazda6eClient:
             data = await self._request(path, payload)
             if not isinstance(data, dict) or not data.get("commandId"):
                 raise MazdaApiError("Command was not accepted")
+            self.last_submit = data
             return await self._wait_for_result(vehicle_id, str(data["commandId"]))
 
     async def _wait_for_result(self, vehicle_id: str, command_id: str) -> dict[str, Any]:
@@ -619,6 +622,28 @@ class Mazda6eClient:
         return next(
             (p for p in plans if isinstance(p, dict) and p.get("planType") == 0), None
         )
+
+    async def add_battery_preheat_plan(
+        self, vehicle_id: str, departure: str, plan_type: int = 0
+    ) -> dict[str, Any]:
+        """Create a battery preheating plan for ``departure`` (YYYYmmddHHMMSS).
+
+        Unverified: the plan list cannot be read on every car, so this is the
+        only way to get a plan there. Returns the backend's answer to the
+        submit (may carry the new planId) and the car's confirmation.
+        """
+        result = await self._signed_command(
+            "cma-app-car-control/api/heating-plans/add-plan",
+            vehicle_id,
+            {
+                "command": "COMMAND_HEATING_PLANS_ADD",
+                "endData": departure,
+                "planType": plan_type,
+            },
+            needs_pin=False,
+            serial_type=SERIAL_HEATING_PLAN,
+        )
+        return {"submit": dict(self.last_submit), "result": result}
 
     async def set_battery_preheat(
         self, vehicle_id: str, plan: dict[str, Any], departure: str | None

@@ -575,6 +575,24 @@
           "description": "Vorher mit der gespeicherten Steuer-PIN ein rcToken holen."
         }
       }
+    },
+    "add_battery_preheat_plan": {
+      "name": "Akku-Vorheizplan anlegen (Diagnose)",
+      "description": "Legt im Auto einen Plan zum Vorheizen des Akkus für die angegebene Abfahrt an (mindestens 20 Minuten voraus) und gibt die Antwort des Servers und die Plan-Liste zurück. Unbestätigt: Jeder Aufruf kann einen weiteren Plan anlegen; überzählige Pläne in der Mazda-App löschen. Nur für Admins.",
+      "fields": {
+        "device_id": {
+          "name": "Auto",
+          "description": "Nur bei mehreren Autos nötig."
+        },
+        "departure": {
+          "name": "Abfahrt",
+          "description": "Wann der Akku warm sein soll."
+        },
+        "plan_type": {
+          "name": "Plantyp",
+          "description": "0 oder 1; welcher Wert passt, ist noch unbekannt."
+        }
+      }
     }
   }
 }

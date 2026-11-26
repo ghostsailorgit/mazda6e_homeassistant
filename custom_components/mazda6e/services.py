@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any
 
 import voluptuous as vol
@@ -12,6 +13,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.service import async_register_admin_service
+from homeassistant.util import dt as dt_util
 
 from .api import CLIMATE_MAX_TEMP, CLIMATE_MIN_TEMP, MazdaError
 from .const import DOMAIN
@@ -21,6 +23,9 @@ SERVICE_START = "start_preconditioning"
 SERVICE_STOP = "stop_preconditioning"
 SERVICE_SKIP = "skip_next_departure"
 SERVICE_RAW = "send_raw_command"
+SERVICE_ADD_PREHEAT = "add_battery_preheat_plan"
+# the car needs the departure at least this far ahead (app hint)
+PREHEAT_MIN_LEAD = timedelta(minutes=20)
 
 ATTR_DURATION = "duration"
 ATTR_SEAT_HEAT = "seat_heat"
@@ -50,6 +55,14 @@ RAW_SCHEMA = vol.Schema(
         vol.Required("control"): cv.string,
         vol.Optional("params", default={}): vol.Schema({cv.string: object}),
         vol.Optional("needs_pin", default=True): cv.boolean,
+    }
+)
+
+ADD_PREHEAT_SCHEMA = vol.Schema(
+    {
+        **TARGET,
+        vol.Required("departure"): cv.datetime,
+        vol.Optional("plan_type", default=0): vol.All(vol.Coerce(int), vol.In([0, 1])),
     }
 )
 
@@ -131,4 +144,38 @@ def async_setup_services(hass: HomeAssistant) -> None:
 
     async_register_admin_service(
         hass, DOMAIN, SERVICE_RAW, raw, schema=RAW_SCHEMA, supports_response=SupportsResponse.ONLY
+    )
+
+    async def add_preheat(call: ServiceCall) -> dict[str, Any]:
+        """Diagnostics: create a battery preheating plan on the car."""
+        preconditioner = _resolve(hass, call)
+        client = preconditioner.coordinator.client
+        departure = call.data["departure"]
+        if departure.tzinfo is None:
+            departure = departure.replace(tzinfo=dt_util.get_default_time_zone())
+        departure = dt_util.as_local(departure)
+        if departure - dt_util.now() < PREHEAT_MIN_LEAD:
+            raise ServiceValidationError("The departure must be at least 20 minutes ahead")
+        try:
+            answer = await client.add_battery_preheat_plan(
+                preconditioner.vehicle_id,
+                departure.strftime("%Y%m%d%H%M%S"),
+                call.data["plan_type"],
+            )
+        except (MazdaError, ValueError) as err:
+            return {"success": False, "error": str(err), "code": getattr(err, "code", None)}
+        # Does the plan list answer now that a plan exists?
+        try:
+            plans: Any = await client.get_heating_plans_raw(preconditioner.vehicle_id)
+        except MazdaError as err:
+            plans = {"error": str(err), "code": getattr(err, "code", None)}
+        return {"success": True, **answer, "plans": plans}
+
+    async_register_admin_service(
+        hass,
+        DOMAIN,
+        SERVICE_ADD_PREHEAT,
+        add_preheat,
+        schema=ADD_PREHEAT_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
     )
