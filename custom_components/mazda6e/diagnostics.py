@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.diagnostics import async_redact_data
-from homeassistant.const import CONF_EMAIL
+from homeassistant.const import CONF_EMAIL, CONF_PASSWORD
 from homeassistant.core import HomeAssistant
 
 from .const import (
@@ -19,6 +19,7 @@ from .coordinator import Mazda6eConfigEntry
 
 TO_REDACT = {
     CONF_EMAIL,
+    CONF_PASSWORD,
     CONF_TOKEN,
     CONF_REFRESH_TOKEN,
     CONF_DEVICE_ID,

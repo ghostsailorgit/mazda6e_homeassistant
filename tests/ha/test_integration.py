@@ -59,7 +59,7 @@ async def test_config_flow_with_email_code(hass: HomeAssistant) -> None:
     entry = result["result"]
     assert entry.unique_id == "me@example.com"
     assert entry.data[CONF_DEVICE_ID]
-    assert CONF_PASSWORD not in entry.data
+    assert entry.data[CONF_PASSWORD] == "pw"
 
 
 async def test_config_flow_invalid_auth(hass: HomeAssistant) -> None:

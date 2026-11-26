@@ -69,6 +69,15 @@ def generate_key_pair() -> tuple[str, str]:
     )
 
 
+def public_key_from_private(private_key_b64: str) -> str:
+    """Return the base64 DER public key that belongs to a stored private key."""
+    public_der = _load_private_key(private_key_b64).public_key().public_bytes(
+        serialization.Encoding.DER,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    return base64.encodebytes(public_der).decode("ascii")
+
+
 def _load_private_key(private_key_b64: str) -> rsa.RSAPrivateKey:
     key = serialization.load_der_private_key(
         base64.b64decode("".join(private_key_b64.split())), password=None

@@ -6,7 +6,7 @@ from datetime import timedelta
 from types import MappingProxyType
 
 from homeassistant.config_entries import ConfigSubentry
-from homeassistant.const import CONF_SCAN_INTERVAL, Platform
+from homeassistant.const import CONF_EMAIL, CONF_PASSWORD, CONF_SCAN_INTERVAL, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
@@ -70,6 +70,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: Mazda6eConfigEntry) -> b
         on_token_update=store_tokens,
         private_key=entry.data.get(CONF_CONTROL_PRIVATE_KEY),
         control_pin=entry.options.get(CONF_CONTROL_PIN),
+        email=entry.data.get(CONF_EMAIL),
+        password=entry.data.get(CONF_PASSWORD),
     )
     minutes = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
     coordinator = Mazda6eCoordinator(hass, entry, client, timedelta(minutes=minutes))

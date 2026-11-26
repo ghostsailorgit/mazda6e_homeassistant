@@ -44,8 +44,12 @@ restart Home Assistant.
 1. Enter email, password, and region (the same credentials as the app).
 2. Mazda sends a **confirmation code by email** — enter it.
 
-The password is not stored, only the tokens and the control key. Under *Configure*
-you can set the polling interval (default: 5 minutes).
+The password is stored in the config entry together with the tokens and the
+control key. Mazda's backend sometimes kills the refresh token (seen after an
+HTTP 500 on the refresh call at night); the integration then logs in again on its
+own instead of waiting for you. The new login reuses the device id, so Mazda does
+not ask for another e-mail code. If it does, Home Assistant asks you to log in.
+Under *Configure* you can set the polling interval (default: 5 minutes).
 
 > Mazda only allows one active login per account: if Home Assistant logs in, the
 > phone app gets logged out (and vice versa). The fix is a **second account just for

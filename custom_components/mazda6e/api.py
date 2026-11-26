@@ -34,7 +34,7 @@ from typing import Any
 import aiohttp
 
 from .const import BASE_URLS
-from .crypto import decrypt_serial, encrypt_credential, sign_payload
+from .crypto import decrypt_serial, encrypt_credential, public_key_from_private, sign_payload
 from .models import Vehicle, VehicleStatus
 
 _LOGGER = logging.getLogger(__name__)
@@ -182,6 +182,8 @@ class Mazda6eClient:
         on_token_update: TokenCallback | None = None,
         private_key: str | None = None,
         control_pin: str | None = None,
+        email: str | None = None,
+        password: str | None = None,
     ) -> None:
         if region not in BASE_URLS:
             raise ValueError(f"Unknown region {region!r}")
@@ -194,6 +196,9 @@ class Mazda6eClient:
         self._refresh_lock = asyncio.Lock()
         self.private_key = private_key
         self.control_pin = control_pin
+        # Stored credentials allow a new login when the refresh token is dead.
+        self.email = email
+        self.password = password
         self.user_id: str | None = None
         # The backend handles one command per car at a time.
         self._command_lock = asyncio.Lock()
@@ -264,8 +269,30 @@ class Mazda6eClient:
             if data.get("success") is not True:
                 code, msg = data.get("code"), data.get("msg")
                 _LOGGER.warning("Token refresh rejected by backend: code=%s msg=%s", code, msg)
-                raise MazdaRefreshError(f"Token refresh failed: {code} {msg}", code)
+                error = MazdaRefreshError(f"Token refresh failed: {code} {msg}", code)
+                await self._relogin(error)
+                return
             await self._store_tokens(data.get("data") or {})
+
+    async def _relogin(self, error: MazdaRefreshError) -> None:
+        """Log in again with the stored credentials after a refused refresh.
+
+        A refresh token can die for good (seen after an HTTP 500 on the refresh
+        call). Only a new login helps then. The same key pair is reused so the
+        control key stays valid. If the new login fails, the original refresh
+        error is raised so the coordinator keeps its grace period.
+        """
+        if not (self.email and self.password and self.private_key):
+            raise error
+        try:
+            public_key = public_key_from_private(self.private_key)
+            needs_code = await self.login(self.email, self.password, public_key)
+        except MazdaError as err:
+            _LOGGER.warning("New login after refused refresh failed: %s", err)
+            raise error from err
+        if needs_code:
+            raise MazdaAuthError("New login needs an e-mail code")
+        _LOGGER.warning("Refresh token was refused; logged in again with stored credentials")
 
     async def _store_tokens(self, data: dict[str, Any]) -> None:
         token, refresh = data.get("token"), data.get("refreshToken")
