@@ -68,9 +68,12 @@ das Abfrageintervall (Standard: 5 Minuten) einstellen.
 | Bereich | Entitäten |
 | --- | --- |
 | Akku | Akkustand (%), Reichweite, Ladelimit |
-| Laden | Ladestrom (Summe Phasen), AC-Ladestrom/Akkustrom (standardmäßig deaktiviert), Ladestatus, Restladezeit, Ladekabel eingesteckt, Lädt |
-| Offen/Zu | Verriegelung, Türen (gesamt + einzeln), Kofferraum, Motorhaube, Fenster (gesamt + einzeln) |
-| Sonstiges | Kilometerstand, Innentemperatur, Klimaanlage an, Fahrzeugzustand (fährt/geparkt), Reifendruck, Online-Status, Zeitpunkt der letzten Meldung |
+| Laden | Ladestrom (Summe Phasen), AC-Ladestrom/Akkustrom (standardmäßig deaktiviert), Ladestatus, Restladezeit, Ladekabel eingesteckt, DC-Ladestecker eingesteckt, Lädt |
+| Offen/Zu | Verriegelung, Türen (gesamt + einzeln), Kofferraum, Motorhaube, Fenster (gesamt + einzeln), Fensteröffnung je Fenster in % (standardmäßig deaktiviert) |
+| Sonstiges | Kilometerstand, Innentemperatur, Klimaanlage an, Fahrzeugzustand (fährt/geparkt), Zündung (Aus/Zubehör/An, Diagnose), Reifendruck, Online-Status, Zeitpunkt der letzten Meldung |
+
+*Ladekabel* ist bei AC-Kabel und DC-Schnelllader gleichermaßen an; *DC-Ladestecker* nur am
+DC-Lader – so lässt sich die Wallbox zu Hause von einem öffentlichen Schnelllader unterscheiden.
 
 > Standort wird nicht angezeigt: Das Auto meldet in der Cloud-API keine Koordinaten
 > (auch die offizielle App zeigt keinen Standort an), daher gibt es keine
@@ -356,6 +359,10 @@ meldet App bzw. Home Assistant ab, wenn sie dasselbe Konto nutzen.
 - *Diagnose herunterladen* auf der Integrationsseite liefert die Rohdaten des
   Fahrzeugs (VIN und Tokens werden geschwärzt). Damit lassen sich unbekannte
   Felder zuordnen.
+- Entitäten nicht verfügbar und *Token refresh failed* im Log: Mazdas Server lehnt
+  die Erneuerung der Anmeldung manchmal eine Zeit lang ab. Die Integration versucht es
+  eine Stunde lang weiter und fragt erst dann nach einem neuen Login. Die Logzeile
+  zeigt Code und Meldung des Servers.
 - Kommst du nicht weiter? [Eröffne ein Issue](https://github.com/ghostsailorgit/mazda6e_homeassistant/issues/new/choose)
   mit der Diagnose-Datei – poste nie Passwort, PIN oder Tokens.
 

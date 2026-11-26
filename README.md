@@ -66,9 +66,12 @@ you can set the polling interval (default: 5 minutes).
 | Area | Entities |
 | --- | --- |
 | Battery | Battery level (%), range, charge limit |
-| Charging | Charging current (sum of phases), AC charging current/battery current (disabled by default), charging status, remaining charge time, charging cable plugged in, charging |
-| Open/closed | Lock, doors (overall + individual), trunk, hood, windows (overall + individual) |
-| Other | Odometer, interior temperature, climate control on, vehicle state (driving/parked), tire pressure, online status, time of last update |
+| Charging | Charging current (sum of phases), AC charging current/battery current (disabled by default), charging status, remaining charge time, charging cable plugged in, DC charging connector plugged in, charging |
+| Open/closed | Lock, doors (overall + individual), trunk, hood, windows (overall + individual), window opening per window in % (disabled by default) |
+| Other | Odometer, interior temperature, climate control on, vehicle state (driving/parked), ignition (off/accessory/on, diagnostic), tire pressure, online status, time of last update |
+
+*Charging cable* is on for an AC cable and a DC fast charger alike; *DC charging connector*
+is only on at a DC charger — useful to tell the home wallbox from a public fast charger.
 
 > Location is not shown: the cloud API does not report GPS coordinates for this car
 > (the official app doesn't show a location either), so there is no `device_tracker`
@@ -350,6 +353,10 @@ Logging in here logs out the app or Home Assistant if they use the same account.
   ```
 - *Download diagnostics* on the integration page gives you the vehicle's raw data
   (VIN and tokens are redacted). Handy for mapping unknown fields.
+- Entities unavailable with *Token refresh failed* in the log: Mazda's backend sometimes
+  refuses to renew the login for a while. The integration keeps retrying for an hour
+  and only then asks you to log in again. The log line shows the backend's code and
+  message.
 - Still stuck? [Open an issue](https://github.com/ghostsailorgit/mazda6e_homeassistant/issues/new/choose)
   with the diagnostics file attached — never post your password, PIN or tokens.
 
