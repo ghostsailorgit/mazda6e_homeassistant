@@ -94,6 +94,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: Mazda6eConfigEntry) -> b
     coordinator.plan_titles = _plan_titles(entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_entry_updated))
+    if not entry.data.get(CONF_PASSWORD):
+        # Entries from before 0.10 have no password, so a dead refresh token
+        # cannot be replaced on its own. Ask once for a login to store it.
+        entry.async_start_reauth(hass)
     return True
 
 
