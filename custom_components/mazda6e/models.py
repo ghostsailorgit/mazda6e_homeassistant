@@ -75,6 +75,13 @@ def _int(value: Any) -> int | None:
     return int(number) if number is not None else None
 
 
+def _percent(value: Any) -> int | None:
+    number = _int(value)
+    if number is None or not 0 <= number <= 100:
+        return None
+    return number
+
+
 def _flag(value: Any) -> bool | None:
     """Interpret 0/1 style flags; None stays unknown."""
     number = _num(value)
@@ -122,6 +129,8 @@ class VehicleStatus:
     passenger_locked: bool | None = None
     doors_open: dict[str, bool | None] = field(default_factory=dict)
     windows_open: dict[str, bool | None] = field(default_factory=dict)
+    # opening degree in percent, same position order as windows_open
+    window_open_percent: dict[str, int | None] = field(default_factory=dict)
     trunk_open: bool | None = None
     hood_open: bool | None = None
 
@@ -267,6 +276,9 @@ class VehicleStatus:
             },
             windows_open={
                 pos: _flag(_index(window.get("windows"), i)) for i, pos in enumerate(WINDOW_POSITIONS)
+            },
+            window_open_percent={
+                pos: _percent(_index(window.get("openDegree"), i)) for i, pos in enumerate(WINDOW_POSITIONS)
             },
             trunk_open=_flag(door.get("trunk")),
             hood_open=_flag(door.get("hood")),

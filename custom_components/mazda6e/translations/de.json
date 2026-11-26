@@ -155,6 +155,26 @@
       "speed": {
         "name": "Geschwindigkeit"
       },
+      "power_state": {
+        "name": "Zündung",
+        "state": {
+          "off": "Aus",
+          "accessory": "Zubehör",
+          "on": "An"
+        }
+      },
+      "window_opening_front_left": {
+        "name": "Fensteröffnung vorne links"
+      },
+      "window_opening_front_right": {
+        "name": "Fensteröffnung vorne rechts"
+      },
+      "window_opening_rear_left": {
+        "name": "Fensteröffnung hinten links"
+      },
+      "window_opening_rear_right": {
+        "name": "Fensteröffnung hinten rechts"
+      },
       "last_update": {
         "name": "Letzte Meldung vom Auto"
       },
@@ -236,6 +256,9 @@
       },
       "plugged_in": {
         "name": "Ladekabel"
+      },
+      "dc_plugged_in": {
+        "name": "DC-Ladestecker"
       },
       "charging": {
         "name": "Laden"

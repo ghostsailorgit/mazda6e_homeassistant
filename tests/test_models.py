@@ -69,6 +69,15 @@ def test_parse_full_status():
     assert s.tire_pressure_bar["front_left"] == 2.5
     assert s.tire_pressure_bar["rear_right"] is None
     assert s.last_update.year == 2025
+    assert s.dc_plugged_in is False
+    assert s.power_state == "off"
+    # openDegree uses the same order as windows (rear windows first)
+    assert s.window_open_percent == {
+        "rear_left": 0,
+        "rear_right": 0,
+        "front_left": 0,
+        "front_right": 30,
+    }
 
 
 def test_all_locked_and_closed():
@@ -107,3 +116,21 @@ def test_vehicle_from_api():
     v = Vehicle.from_api({"carId": 123, "vin": "JMZ123", "modelName": "MAZDA 6e", "carName": ""})
     assert v.vehicle_id == "123"
     assert v.display_name == "MAZDA 6e"
+
+
+def test_window_opening_out_of_range_is_unknown():
+    s = VehicleStatus.from_api({"window": {"openDegree": [0, -1, 101, None]}})
+    assert s.window_open_percent == {
+        "rear_left": 0,
+        "rear_right": None,
+        "front_left": None,
+        "front_right": None,
+    }
+
+
+def test_dc_connector_and_ignition():
+    s = VehicleStatus.from_api(
+        {"vehicleStatus": {"powerStatus": 2}, "charge": {"dcChargeGunConnectStatus": 1}}
+    )
+    assert s.dc_plugged_in is True
+    assert s.power_state == "on"
