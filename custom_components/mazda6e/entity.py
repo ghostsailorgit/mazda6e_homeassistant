@@ -14,7 +14,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .api import MazdaAuthError, MazdaError, MazdaPinError
+from .api import MazdaAuthError, MazdaError, MazdaPinError, MazdaRefreshError
 from .const import CONF_CONTROL_PRIVATE_KEY, DOMAIN, PLAN_VEHICLE, SUBENTRY_PLAN
 from .coordinator import Mazda6eConfigEntry, Mazda6eCoordinator, VehicleData
 from .models import Vehicle, VehicleStatus
@@ -105,6 +105,13 @@ class Mazda6eControlEntity(Mazda6eEntity):
                 ) from err
             key = "pin_missing" if not (pin or self.coordinator.client.control_pin) else "invalid_pin"
             raise HomeAssistantError(translation_domain=DOMAIN, translation_key=key) from err
+        except MazdaRefreshError as err:
+            # The coordinator decides when a refused refresh needs a new login.
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="command_failed",
+                translation_placeholders={"error": str(err)},
+            ) from err
         except MazdaAuthError as err:
             self.coordinator.config_entry.async_start_reauth(self.hass)
             raise HomeAssistantError(translation_domain=DOMAIN, translation_key="reauth_required") from err
