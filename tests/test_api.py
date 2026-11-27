@@ -483,6 +483,23 @@ def test_battery_preheat_plan(control):
     assert backend.commands[1]["enabled"] is False
 
 
+def test_add_battery_preheat_plan(control):
+    public, private = control
+    backend = FakeControlBackend(public, [0])
+
+    async def run(client):
+        answer = await client.add_battery_preheat_plan("42", "20261127073000")
+        assert answer["submit"] == {"commandId": "cmd-1"}
+        assert answer["result"]["resultCode"] == 0
+
+    _run_control(backend, private, run)
+    assert backend.command_paths == ["heating-plans/add-plan"]
+    assert backend.serial_types == ["5"]
+    assert backend.commands[0]["endData"] == "20261127073000"
+    assert backend.commands[0]["planType"] == 0
+    assert backend.commands[0]["command"] == "COMMAND_HEATING_PLANS_ADD"
+
+
 def test_charge_plan(control):
     public, private = control
     backend = FakeControlBackend(public, [0, 0])

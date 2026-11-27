@@ -575,6 +575,24 @@
           "description": "Fetch an rcToken with the stored control PIN first."
         }
       }
+    },
+    "add_battery_preheat_plan": {
+      "name": "Add battery preheat plan (diagnostics)",
+      "description": "Creates a battery preheating plan on the car for the given departure (at least 20 minutes ahead) and returns the backend's answer and the plan list. Unverified: each call may add another plan; delete extra plans in the Mazda app. Admins only.",
+      "fields": {
+        "device_id": {
+          "name": "Car",
+          "description": "Only needed with more than one car."
+        },
+        "departure": {
+          "name": "Departure",
+          "description": "When the battery should be warm."
+        },
+        "plan_type": {
+          "name": "Plan type",
+          "description": "0 or 1; which one the car expects is not known yet."
+        }
+      }
     }
   }
 }

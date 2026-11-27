@@ -67,3 +67,21 @@ send_raw_command:
       default: true
       selector:
         boolean:
+
+add_battery_preheat_plan:
+  fields:
+    device_id:
+      selector:
+        device:
+          integration: mazda6e
+    departure:
+      required: true
+      selector:
+        datetime:
+    plan_type:
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 1
+          mode: box
