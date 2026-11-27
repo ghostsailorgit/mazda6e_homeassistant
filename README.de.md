@@ -46,8 +46,12 @@ Home Assistant neu starten.
 1. E-Mail, Passwort und Region eingeben (dieselben Daten wie in der App).
 2. Mazda schickt einen **Bestätigungscode per E-Mail** – diesen eingeben.
 
-Das Passwort wird nicht gespeichert, nur die Tokens und der Steuerschlüssel. Unter *Konfigurieren* lässt sich
-das Abfrageintervall (Standard: 5 Minuten) einstellen.
+Das Passwort wird zusammen mit den Tokens und dem Steuerschlüssel im Config-Entry gespeichert. Mazdas Server
+verwirft manchmal das Refresh-Token (beobachtet nach einem HTTP 500 beim Erneuern, nachts); die Integration
+meldet sich dann selbst neu an, statt auf dich zu warten. Die Neuanmeldung nutzt dieselbe Geräte-ID, Mazda
+verlangt also keinen neuen E-Mail-Code. Tut es das doch, fragt Home Assistant nach einem Login. Ältere
+Einträge ohne gespeichertes Passwort fragen einmal nach einem Login. Unter *Konfigurieren* lässt sich das
+Abfrageintervall (Standard: 5 Minuten) einstellen.
 
 > Mazda erlaubt pro Konto nur eine aktive Anmeldung: Meldet sich Home Assistant an,
 > wird die App auf dem Handy abgemeldet (und umgekehrt). Abhilfe schafft ein

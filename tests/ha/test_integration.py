@@ -59,7 +59,7 @@ async def test_config_flow_with_email_code(hass: HomeAssistant) -> None:
     entry = result["result"]
     assert entry.unique_id == "me@example.com"
     assert entry.data[CONF_DEVICE_ID]
-    assert CONF_PASSWORD not in entry.data
+    assert entry.data[CONF_PASSWORD] == "pw"
 
 
 async def test_config_flow_invalid_auth(hass: HomeAssistant) -> None:
@@ -75,12 +75,13 @@ async def test_config_flow_invalid_auth(hass: HomeAssistant) -> None:
     assert result["errors"] == {"base": "invalid_auth"}
 
 
-def _entry() -> MockConfigEntry:
+def _entry(password: str | None = "pw") -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
         unique_id="a@b.c",
         data={
             CONF_EMAIL: "a@b.c",
+            CONF_PASSWORD: password,
             CONF_REGION: "europe",
             CONF_DEVICE_ID: "dev",
             CONF_TOKEN: "t",
@@ -107,6 +108,21 @@ async def test_setup_creates_entities(hass: HomeAssistant) -> None:
     assert hass.states.get("binary_sensor.mazda_6e_doors").state == "on"
     assert hass.states.get("binary_sensor.mazda_6e_windows").state == "off"
     assert hass.states.get("binary_sensor.mazda_6e_charging").state == "on"
+
+
+async def test_entry_without_password_asks_for_login(hass: HomeAssistant) -> None:
+    entry = _entry(password=None)
+    entry.add_to_hass(hass)
+    with (
+        patch(f"{CLIENT}.get_vehicles", AsyncMock(return_value=[VEHICLE])),
+        patch(f"{CLIENT}.get_status", AsyncMock(return_value=STATUS)),
+        patch(f"{CLIENT}.get_functions", AsyncMock(return_value=set())),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+    assert entry.state is config_entries.ConfigEntryState.LOADED
+    flows = hass.config_entries.flow.async_progress()
+    assert any(f["context"]["source"] == config_entries.SOURCE_REAUTH for f in flows)
 
 
 async def test_expired_login_starts_reauth(hass: HomeAssistant) -> None:

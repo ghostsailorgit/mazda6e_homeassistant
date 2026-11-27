@@ -111,6 +111,7 @@ class Mazda6eConfigFlow(ConfigFlow, domain=DOMAIN):
         self._device_id: str | None = None
         self._private_key: str | None = None
         self._needs_verification = False
+        self._password: str | None = None
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
@@ -121,7 +122,8 @@ class Mazda6eConfigFlow(ConfigFlow, domain=DOMAIN):
                 await self.async_set_unique_id(self._email.lower())
                 self._abort_if_unique_id_configured()
 
-            errors = await self._async_login(user_input[CONF_PASSWORD])
+            self._password = user_input[CONF_PASSWORD]
+            errors = await self._async_login(self._password)
             if not errors:
                 if self._needs_verification:
                     return await self.async_step_verify()
@@ -182,6 +184,8 @@ class Mazda6eConfigFlow(ConfigFlow, domain=DOMAIN):
         assert self._client is not None
         data = {
             CONF_EMAIL: self._email,
+            # kept for a new login when the backend kills the refresh token
+            CONF_PASSWORD: self._password,
             CONF_REGION: self._region,
             CONF_DEVICE_ID: self._device_id,
             CONF_TOKEN: self._client.token,

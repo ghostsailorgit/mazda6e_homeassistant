@@ -6,7 +6,7 @@ from datetime import timedelta
 from types import MappingProxyType
 
 from homeassistant.config_entries import ConfigSubentry
-from homeassistant.const import CONF_SCAN_INTERVAL, Platform
+from homeassistant.const import CONF_EMAIL, CONF_PASSWORD, CONF_SCAN_INTERVAL, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
@@ -70,6 +70,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: Mazda6eConfigEntry) -> b
         on_token_update=store_tokens,
         private_key=entry.data.get(CONF_CONTROL_PRIVATE_KEY),
         control_pin=entry.options.get(CONF_CONTROL_PIN),
+        email=entry.data.get(CONF_EMAIL),
+        password=entry.data.get(CONF_PASSWORD),
     )
     minutes = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
     coordinator = Mazda6eCoordinator(hass, entry, client, timedelta(minutes=minutes))
@@ -92,6 +94,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: Mazda6eConfigEntry) -> b
     coordinator.plan_titles = _plan_titles(entry)
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_entry_updated))
+    if not entry.data.get(CONF_PASSWORD):
+        # Entries from before 0.10 have no password, so a dead refresh token
+        # cannot be replaced on its own. Ask once for a login to store it.
+        entry.async_start_reauth(hass)
     return True
 
 

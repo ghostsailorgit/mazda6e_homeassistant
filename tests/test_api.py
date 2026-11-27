@@ -31,6 +31,9 @@ class FakeBackend:
     def __init__(self):
         self.valid_token = "t1"
         self.calls: list[str] = []
+        self.login_needs_code = True
+        self.login_ok = True
+        self.pub_keys: list[str] = []
 
     def app(self) -> web.Application:
         app = web.Application()
@@ -45,8 +48,15 @@ class FakeBackend:
 
         if path.endswith("login/email-pass-in/v2"):
             assert body["email"] and body["password"] and body["pubKey"]
+            self.pub_keys.append(body["pubKey"])
+            if not self.login_ok:
+                return web.json_response({"success": False, "code": "COMMON_1_1_01_001"})
+            self.valid_token = "t1"
             return web.json_response(
-                {"success": True, "data": {"token": "t1", "refreshToken": "r1", "emailVerify": True}}
+                {
+                    "success": True,
+                    "data": {"token": "t1", "refreshToken": "r1", "emailVerify": self.login_needs_code},
+                }
             )
         if path.endswith("auth/refresh-token"):
             if body["refreshToken"] != "r1":
@@ -143,6 +153,65 @@ def test_failed_refresh_raises_auth_error():
         assert isinstance(err.value, api_mod.MazdaAuthError)
 
     asyncio.run(_with_client(backend, run, token="t1", refresh_token="bad"))
+
+
+def _dead_refresh_backend(**attrs) -> FakeBackend:
+    backend = FakeBackend()
+    backend.valid_token = "other"  # stored token expired, refresh token "dead" refused
+    backend.login_needs_code = False
+    for key, value in attrs.items():
+        setattr(backend, key, value)
+    return backend
+
+
+def _dead_refresh_kwargs(private_key, stored):
+    return {
+        "token": "t0",
+        "refresh_token": "dead",
+        "private_key": private_key,
+        "email": "a@b.c",
+        "password": "pw",
+        "on_token_update": lambda t, r: stored.append((t, r)),
+    }
+
+
+def test_refused_refresh_logs_in_again():
+    public, private = generate_key_pair()
+    backend = _dead_refresh_backend()
+    stored = []
+
+    async def run(client):
+        status = await client.get_status("42")
+        assert status.soc == 55
+        assert client.token == "t1"
+
+    asyncio.run(_with_client(backend, run, **_dead_refresh_kwargs(private, stored)))
+    assert stored == [("t1", "r1")]
+    # same key pair as before, so the control key stays valid
+    assert "".join(backend.pub_keys[0].split()) == "".join(public.split())
+
+
+def test_relogin_needing_email_code_asks_user():
+    _, private = generate_key_pair()
+    backend = _dead_refresh_backend(login_needs_code=True)
+
+    async def run(client):
+        with pytest.raises(api_mod.MazdaAuthError) as err:
+            await client.get_status("42")
+        assert not isinstance(err.value, api_mod.MazdaRefreshError)
+
+    asyncio.run(_with_client(backend, run, **_dead_refresh_kwargs(private, [])))
+
+
+def test_failed_relogin_keeps_refresh_error():
+    _, private = generate_key_pair()
+    backend = _dead_refresh_backend(login_ok=False)
+
+    async def run(client):
+        with pytest.raises(api_mod.MazdaRefreshError):
+            await client.get_status("42")
+
+    asyncio.run(_with_client(backend, run, **_dead_refresh_kwargs(private, [])))
 
 
 def test_unreachable_backend():
