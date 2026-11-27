@@ -49,6 +49,7 @@ control key. Mazda's backend sometimes kills the refresh token (seen after an
 HTTP 500 on the refresh call at night); the integration then logs in again on its
 own instead of waiting for you. The new login reuses the device id, so Mazda does
 not ask for another e-mail code. If it does, Home Assistant asks you to log in.
+Entries created before the password was stored ask once for a login.
 Under *Configure* you can set the polling interval (default: 5 minutes).
 
 > Mazda only allows one active login per account: if Home Assistant logs in, the
